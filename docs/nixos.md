@@ -5,19 +5,24 @@ It includes the reference theme, a desktop launcher and scalable app icon,
 and the Wayland/XKB runtime libraries needed by the GUI. Theme files and settings remain in the
 user's standard XDG directories; the package does not write into the Nix store.
 
-## Install from this checkout
+## Run directly from GitHub
 
-Build and launch with:
+Build and launch the latest version from the repository's default branch:
 
 ```sh
-nix run .
+nix run github:Jade-Switch/nowplaying
 ```
 
-To install it into a NixOS system configuration, add the checkout as a flake
-input in `flake.nix`:
+## Install in a NixOS configuration
+
+Add the GitHub repository as a flake input. Following the system's nixpkgs
+input keeps both flakes on the same package set:
 
 ```nix
-inputs.now-playing-studio.url = "path:/path/to/nowplaying";
+inputs.now-playing-studio = {
+  url = "github:Jade-Switch/nowplaying";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
 ```
 
 Then add the package to the relevant system or user package list:
@@ -30,8 +35,8 @@ environment.systemPackages = [
 
 Run `sudo nixos-rebuild switch --flake /etc/nixos#<hostname>` and launch **Now
 Playing Studio** from the desktop application menu, or run
-`now-playing-studio` from a terminal. For a remote source checkout, replace the
-`path:` input with its Git URL.
+`now-playing-studio` from a terminal. Nix fetches the source from GitHub and
+records the selected repository revision in the system flake lock file.
 
 ## Desktop session requirements
 
@@ -67,10 +72,11 @@ for OBS running in the same user session or machine.
 
 ## Build verification
 
-From the repository root, use:
+Build from GitHub with:
 
 ```sh
-nix build .#now-playing-studio
+nix build github:Jade-Switch/nowplaying#now-playing-studio
 ```
 
 The resulting executable is available at `result/bin/now-playing-studio`.
+For local development from a checkout, use `nix build .#now-playing-studio`.

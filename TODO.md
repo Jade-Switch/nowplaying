@@ -214,7 +214,9 @@ on KDE Plasma Wayland. Settings includes a startup checkbox that adds or removes
 Progress note: a Nix flake defines Linux packages and `nix run`, with a
 desktop launcher, bundled scalable SVG application icon, and runtime library
 paths for the GUI. NixOS installation, desktop session, OBS, and troubleshooting
-instructions are in `docs/nixos.md`.
+instructions are in `docs/nixos.md`; system installs use the GitHub flake input
+`github:Jade-Switch/nowplaying`. `nix flake metadata` and `nix flake show`
+confirm the repository resolves and exports the documented package.
 `nix build path:.#now-playing-studio` succeeds. The derivation compiles the
 release binary without running the project's tests; clean-install and desktop
 runtime verification remain.
