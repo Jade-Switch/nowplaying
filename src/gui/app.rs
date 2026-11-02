@@ -4,7 +4,7 @@ use std::{
     process::Command,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -134,6 +134,8 @@ struct ImportedTheme {
 }
 
 type ArtworkKey = (Option<String>, Option<String>);
+
+static SETTINGS_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 struct App {
     section: Section,
@@ -1083,13 +1085,25 @@ async fn save_server_port(path: PathBuf, port: u16) -> Result<(), String> {
     tokio::fs::create_dir_all(parent)
         .await
         .map_err(|error| format!("Could not create the settings directory: {error}"))?;
-    let temporary_path = parent.join(format!(".settings.tmp-{}", std::process::id()));
-    let mut file = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temporary_path)
-        .await
-        .map_err(|error| format!("Could not create temporary settings file: {error}"))?;
+    let (temporary_path, mut file) = loop {
+        let temporary_path = parent.join(format!(
+            ".settings.tmp-{}-{}",
+            std::process::id(),
+            SETTINGS_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        match tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)
+            .await
+        {
+            Ok(file) => break (temporary_path, file),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!("Could not create temporary settings file: {error}"));
+            }
+        }
+    };
     if let Err(error) = file.write_all(contents.as_bytes()).await {
         drop(file);
         let _ = tokio::fs::remove_file(&temporary_path).await;

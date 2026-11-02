@@ -149,6 +149,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     gui_result?;
     server_result?;
+    // Release the single-instance lock before spawning a replacement process.
+    // Otherwise the new process can see this lock and exit during startup.
+    drop(_instance_lock);
     if restart_requested.load(Ordering::Relaxed) {
         Command::new(std::env::current_exe()?).spawn()?;
     }

@@ -1,0 +1,724 @@
+[theme]
+id = "starfall"
+name = "Starfall"
+version = "1.1.0"
+format_version = 1
+author = "Jade"
+description = "A quiet pixel-art night sky in lavender tones."
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 640
+height = 180
+background = "transparent"
+
+[layout]
+direction = "horizontal"
+alignment = "center"
+spacing = 12
+padding = 8
+
+[artwork]
+enabled = true
+position = "left"
+width = 112
+height = 112
+fit = "cover"
+rendering = "auto"
+
+[metadata]
+show_title = true
+show_artist = true
+show_album = true
+alignment = "start"
+
+[progress]
+enabled = true
+position = "bottom"
+height = 3
+
+[animations]
+enabled = true
+reduced_motion_support = true
+track_change = "crossfade"
+track_change_duration_ms = 450
+
+[colors]
+background = "#171625"
+text = "#eee9ff"
+muted = "#aaa2c9"
+accent = "#c5a6f7"
+
+[html]
+template = """
+<main class="player" id="player">
+  <div class="sky" aria-hidden="true">
+    <div class="stars stars-back"></div>
+    <div class="stars stars-front"></div>
+
+    <div class="moon">
+      <svg viewBox="0 0 16 16" role="presentation">
+        <g fill="#e9ddff">
+          <rect x="7" y="2" width="3" height="1"/>
+          <rect x="5" y="3" width="5" height="1"/>
+          <rect x="4" y="4" width="5" height="1"/>
+          <rect x="3" y="5" width="5" height="1"/>
+          <rect x="3" y="6" width="5" height="1"/>
+          <rect x="2" y="7" width="6" height="1"/>
+          <rect x="2" y="8" width="6" height="1"/>
+          <rect x="3" y="9" width="5" height="1"/>
+          <rect x="3" y="10" width="5" height="1"/>
+          <rect x="4" y="11" width="5" height="1"/>
+          <rect x="5" y="12" width="5" height="1"/>
+          <rect x="7" y="13" width="3" height="1"/>
+        </g>
+      </svg>
+    </div>
+
+    <div class="distant-mountains"></div>
+    <div class="near-mountains"></div>
+  </div>
+
+  <section class="content">
+    <div class="artwork-frame">
+      <img id="cover" alt="Album artwork">
+      <div class="artwork-placeholder" id="cover-placeholder">
+        <span>✦</span>
+      </div>
+    </div>
+
+    <section class="information" aria-live="polite">
+      <div class="topline">
+        <span class="eyebrow">NOW PLAYING</span>
+        <span class="status">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status">WAITING</span>
+        </span>
+      </div>
+
+      <div class="track-information" id="track-information">
+        <h1 id="title">Waiting for music</h1>
+        <p id="artist">Your night soundtrack begins here</p>
+        <p id="album"></p>
+      </div>
+
+      <div class="player-information">
+        <span id="player-name">NOW PLAYING STUDIO</span>
+        <span class="track-count" id="track-count">✦</span>
+      </div>
+    </section>
+  </section>
+
+  <section class="progress-area">
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="time-labels">
+      <span id="elapsed">0:00</span>
+      <span id="duration">0:00</span>
+    </div>
+  </section>
+</main>
+"""
+
+[css]
+stylesheet = """
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+.player {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  min-width: 320px;
+  overflow: hidden;
+  isolation: isolate;
+  color: #eee9ff;
+  background:
+    radial-gradient(
+      ellipse at 78% 12%,
+      rgba(115, 91, 158, 0.24),
+      transparent 48%
+    ),
+    linear-gradient(
+      115deg,
+      #171625 0%,
+      #201c35 52%,
+      #29223e 100%
+    );
+  border: 1px solid rgba(215, 198, 255, 0.12);
+  border-radius: 13px;
+}
+
+/* Night sky */
+
+.sky {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.stars {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+}
+
+.stars-back {
+  opacity: 0.45;
+  background-image:
+    radial-gradient(circle, #e6d8ff 1px, transparent 1.5px),
+    radial-gradient(circle, #a99ad7 1px, transparent 1.5px);
+  background-size: 83px 61px, 113px 89px;
+  background-position: 13px 7px, 39px 24px;
+}
+
+.stars-front {
+  opacity: 0.55;
+  background-image:
+    radial-gradient(circle, #ffffff 1px, transparent 1.5px);
+  background-size: 137px 97px;
+  background-position: 74px 19px;
+}
+
+.moon {
+  position: absolute;
+  top: 20px;
+  right: 48px;
+  width: 48px;
+  height: 48px;
+  opacity: 0.95;
+  filter: drop-shadow(0 0 12px rgba(210, 184, 255, 0.24));
+}
+
+.moon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  shape-rendering: crispEdges;
+}
+
+/* Pixel mountain silhouettes */
+
+.distant-mountains {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 62px;
+  opacity: 0.55;
+  background: #383052;
+  clip-path: polygon(
+    0 65%,
+    7% 65%,
+    7% 48%,
+    12% 48%,
+    12% 32%,
+    17% 32%,
+    17% 48%,
+    24% 48%,
+    24% 67%,
+    35% 67%,
+    35% 45%,
+    42% 45%,
+    42% 25%,
+    47% 25%,
+    47% 43%,
+    54% 43%,
+    54% 62%,
+    63% 62%,
+    63% 48%,
+    70% 48%,
+    70% 30%,
+    76% 30%,
+    76% 52%,
+    84% 52%,
+    84% 68%,
+    100% 68%,
+    100% 100%,
+    0 100%
+  );
+}
+
+.near-mountains {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 39px;
+  opacity: 0.7;
+  background: #211d36;
+  clip-path: polygon(
+    0 48%,
+    8% 48%,
+    8% 34%,
+    14% 34%,
+    14% 54%,
+    23% 54%,
+    23% 39%,
+    30% 39%,
+    30% 59%,
+    42% 59%,
+    42% 34%,
+    49% 34%,
+    49% 48%,
+    58% 48%,
+    58% 29%,
+    65% 29%,
+    65% 52%,
+    77% 52%,
+    77% 35%,
+    84% 35%,
+    84% 54%,
+    93% 54%,
+    93% 40%,
+    100% 40%,
+    100% 100%,
+    0 100%
+  );
+}
+
+/* Main layout */
+
+.content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 19px;
+  height: 100%;
+  padding: 15px 25px 24px;
+}
+
+.artwork-frame {
+  position: relative;
+  flex: 0 0 112px;
+  width: 112px;
+  height: 112px;
+  overflow: hidden;
+  background: #302a47;
+  border: 1px solid rgba(226, 211, 255, 0.24);
+  border-radius: 8px;
+  box-shadow: 0 7px 22px rgba(0, 0, 0, 0.25);
+}
+
+#cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 350ms ease;
+}
+
+#cover.visible {
+  opacity: 1;
+}
+
+.artwork-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #c5a6f7;
+  font-size: 32px;
+  background:
+    linear-gradient(135deg, #403654, #29243d);
+}
+
+.artwork-placeholder.hidden {
+  display: none;
+}
+
+.information {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 112px;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.eyebrow {
+  color: #c5a6f7;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 2.2px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #aaa2c9;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 1px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #817a98;
+}
+
+.status-dot.playing {
+  background: #c5a6f7;
+  box-shadow: 0 0 8px rgba(197, 166, 247, 0.8);
+}
+
+.track-information {
+  min-width: 0;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.track-information.changing {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+#title {
+  margin: 0;
+  overflow: hidden;
+  color: #eee9ff;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#artist {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #c5b9df;
+  font-size: 12px;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#album {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: #8f87ac;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#album:empty {
+  display: none;
+}
+
+.player-information {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #89819f;
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: 1.4px;
+}
+
+.track-count {
+  color: #c5a6f7;
+  font-size: 12px;
+}
+
+/* Progress */
+
+.progress-area {
+  position: absolute;
+  z-index: 3;
+  right: 25px;
+  bottom: 8px;
+  left: 25px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(220, 205, 255, 0.17);
+  border-radius: 4px;
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #a98be8, #e0caff);
+  border-radius: 4px;
+  box-shadow: 0 0 8px rgba(197, 166, 247, 0.55);
+  transition: width 250ms linear;
+}
+
+.time-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: #9188a9;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Responsive */
+
+@media (max-width: 460px) {
+  .content {
+    gap: 12px;
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+
+  .artwork-frame {
+    flex-basis: 88px;
+    width: 88px;
+    height: 88px;
+  }
+
+  .information {
+    height: 105px;
+  }
+
+  #title {
+    font-size: 16px;
+  }
+
+  .moon {
+    right: 20px;
+    opacity: 0.55;
+  }
+
+  .progress-area {
+    right: 15px;
+    left: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+"""
+
+[javascript]
+source = """
+(function () {
+  "use strict";
+
+  const api = window.NowPlaying;
+
+  if (!api || typeof api.subscribe !== "function") {
+    return;
+  }
+
+  const elements = {
+    player: document.getElementById("player"),
+    cover: document.getElementById("cover"),
+    placeholder: document.getElementById("cover-placeholder"),
+    title: document.getElementById("title"),
+    artist: document.getElementById("artist"),
+    album: document.getElementById("album"),
+    status: document.getElementById("status"),
+    statusDot: document.getElementById("status-dot"),
+    playerName: document.getElementById("player-name"),
+    progress: document.getElementById("progress-fill"),
+    elapsed: document.getElementById("elapsed"),
+    duration: document.getElementById("duration"),
+    trackInformation: document.getElementById("track-information")
+  };
+
+  let previousTrack = null;
+  let hasReceivedState = false;
+  let artworkUrl = null;
+
+  function formatTime(milliseconds) {
+    const seconds = Math.floor(
+      Math.max(0, Number(milliseconds) || 0) / 1000
+    );
+
+    const minutes = Math.floor(seconds / 60);
+    const remaining = seconds % 60;
+
+    return minutes + ":" + String(remaining).padStart(2, "0");
+  }
+
+  function setText(element, value) {
+    element.textContent = value == null ? "" : String(value);
+  }
+
+  function updateArtwork(url) {
+    const nextUrl = typeof url === "string" ? url : "";
+
+    if (nextUrl === artworkUrl) {
+      return;
+    }
+
+    artworkUrl = nextUrl;
+    elements.cover.classList.remove("visible");
+
+    if (!nextUrl) {
+      elements.cover.removeAttribute("src");
+      elements.placeholder.classList.remove("hidden");
+      return;
+    }
+
+    elements.cover.onload = function () {
+      elements.cover.classList.add("visible");
+      elements.placeholder.classList.add("hidden");
+    };
+
+    elements.cover.onerror = function () {
+      elements.cover.classList.remove("visible");
+      elements.placeholder.classList.remove("hidden");
+    };
+
+    elements.cover.src = nextUrl;
+  }
+
+  function animateTrackChange() {
+    if (window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    elements.trackInformation.classList.add("changing");
+
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        elements.trackInformation.classList.remove("changing");
+      });
+    });
+  }
+
+  function render(snapshot, kind) {
+    if (!snapshot || typeof snapshot !== "object") {
+      return;
+    }
+
+    const metadata = snapshot.metadata || {};
+    const player = snapshot.player || {};
+    const artists = Array.isArray(metadata.artists)
+      ? metadata.artists
+      : [];
+
+    const title = metadata.title || "Unknown track";
+    const artist = artists.filter(Boolean).join(", ") || "Unknown artist";
+    const album = metadata.album || "";
+
+    const trackKey = [
+      metadata.trackId || "",
+      title,
+      artist,
+      album
+    ].join("|");
+
+    if (
+      hasReceivedState &&
+      previousTrack !== null &&
+      previousTrack !== trackKey &&
+      kind !== "snapshot"
+    ) {
+      animateTrackChange();
+    }
+
+    previousTrack = trackKey;
+    hasReceivedState = true;
+
+    setText(
+      elements.title,
+      snapshot.connected ? title : "Waiting for music"
+    );
+
+    setText(
+      elements.artist,
+      snapshot.connected ? artist : "Your night soundtrack begins here"
+    );
+
+    setText(elements.album, snapshot.connected ? album : "");
+
+    const status = snapshot.status || "unknown";
+    const statusLabels = {
+      playing: "PLAYING",
+      paused: "PAUSED",
+      stopped: "STOPPED",
+      unknown: "UNKNOWN"
+    };
+
+    setText(
+      elements.status,
+      snapshot.connected
+        ? (statusLabels[status] || "UNKNOWN")
+        : "WAITING"
+    );
+
+    elements.statusDot.classList.toggle(
+      "playing",
+      snapshot.connected && status === "playing"
+    );
+
+    setText(
+      elements.playerName,
+      player.identity || "NOW PLAYING STUDIO"
+    );
+
+    updateArtwork(
+      snapshot.connected ? metadata.artworkUrl : null
+    );
+
+    const position = Math.max(0, Number(snapshot.positionMs) || 0);
+    const length = Math.max(0, Number(snapshot.durationMs) || 0);
+
+    const percentage = length > 0
+      ? Math.min(100, (position / length) * 100)
+      : 0;
+
+    elements.progress.style.width = percentage + "%";
+
+    setText(elements.elapsed, formatTime(position));
+    setText(elements.duration, formatTime(length));
+
+    elements.player.dataset.status = status;
+    elements.player.dataset.connected = String(!!snapshot.connected);
+  }
+
+  api.subscribe(function (snapshot, kind) {
+    render(snapshot, kind);
+  });
+})();
+"""
