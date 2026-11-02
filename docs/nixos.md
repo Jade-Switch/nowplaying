@@ -1,17 +1,24 @@
 # NixOS installation
 
 The flake builds Now Playing Studio for `x86_64-linux` and `aarch64-linux`.
-It includes the reference theme, a desktop launcher and scalable app icon,
-and the Wayland/XKB runtime libraries needed by the GUI. Theme files and settings remain in the
-user's standard XDG directories; the package does not write into the Nix store.
+It includes a desktop launcher and scalable app icon.
 
 ## Run directly from GitHub
-
-Build and launch the latest version from the repository's default branch:
 
 ```sh
 nix run github:Jade-Switch/nowplaying
 ```
+
+This starts the app but does not install its desktop entry into KDE's app
+search. To make the app and its icon available there, install it into your
+profile:
+
+```sh
+nix profile install github:Jade-Switch/nowplaying
+```
+
+Then launch **Now Playing Studio** from KDE's application launcher. The desktop
+entry refers to the bundled `now-playing-studio` icon.
 
 ## Install in a NixOS configuration
 
@@ -40,8 +47,19 @@ records the selected repository revision in the system flake lock file.
 
 ## Desktop session requirements
 
-The app expects a logged-in graphical session with a session D-Bus. KDE Plasma
-provides the StatusNotifier tray watcher and XDG desktop portal used by the app.
+The app expects a logged-in graphical session with a session D-Bus. The Import
+Theme button uses the XDG desktop portal file chooser. For KDE Plasma on NixOS,
+enable the KDE portal backend in the system configuration:
+
+```nix
+xdg.portal = {
+  enable = true;
+  extraPortals = [ pkgs.kdePackages.xdg-desktop-portal-kde ];
+};
+```
+
+Rebuild and log in to the graphical session again after enabling it. KDE Plasma
+also provides the StatusNotifier tray watcher used by the app.
 The tray's Open and Quit actions work when the watcher is available; without a
 tray watcher, closing the window exits the app. MPRIS player discovery also
 uses the session bus. Ensure the media player publishes an MPRIS interface for

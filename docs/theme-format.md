@@ -3,11 +3,10 @@
 Each theme is one `.toml` file. There are no sidecar directories or archives.
 The runtime reads the embedded HTML body, CSS, JavaScript and explicitly typed
 Base64 assets from that file. There is no template-variable substitution;
-dynamic playback data comes from the documented [JavaScript API](playback-api.md).
+dynamic playback data comes from the documented [JavaScript API](playback.md).
 
 ## Example
 
-```toml
 [theme]
 id = "sample-player"
 name = "Sample Player"
@@ -82,7 +81,8 @@ source = """
 [assets.brand_mark]
 mime_type = "image/gif"
 data = "R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
-```
+
+
 
 ## Schema and defaults
 

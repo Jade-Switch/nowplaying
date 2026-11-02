@@ -81,6 +81,24 @@ cargo build
 
 Linux systems require a working D-Bus session and compatible MPRIS media players for playback integration.
 
+## How to install with Nix
+
+To install it into your user profile, so KDE can index its desktop launcher, run:
+
+```sh
+nix profile install github:Jade-Switch/nowplaying
+```
+
+You can also run the latest version directly from GitHub without adding it to
+your profile:
+
+```sh
+nix run github:Jade-Switch/nowplaying
+```
+
+On NixOS, configure the KDE desktop portal for the Import Theme file picker.
+See the [NixOS installation guide](docs/nixos.md) for setup details.
+
 ## Project structure
 
 The project is organised into separate components for playback integration, application state, theme handling, the local server, and the desktop interface.
@@ -90,7 +108,7 @@ The intention is to keep these responsibilities separated without introducing un
 ## Documentation
 
 - [Theme file format](docs/theme-format.md)
-- [Playback JavaScript API](docs/playback-api.md)
+- [Playback, browser API, server, and artwork](docs/playback.md)
 - [Architecture](docs/architecture.md)
 - [NixOS installation and packaging](docs/nixos.md)
 
