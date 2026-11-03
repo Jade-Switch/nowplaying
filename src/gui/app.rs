@@ -1174,13 +1174,9 @@ impl App {
             .menu_style(design::dropdown_menu)
             .into()
         });
-        let mut details = column![
-            text(&theme.document.theme.name)
-                .size(design::typography::HEADING)
-                .color(design::TEXT_PRIMARY),
-            text(format!("Version {}", theme.document.theme.version))
-                .size(design::typography::CAPTION)
-                .color(design::TEXT_SECONDARY),
+        let size_details: Element<'a, Message> = if let Some(variant_picker) = variant_picker {
+            variant_picker
+        } else {
             text(format!(
                 "{} · {} × {} px",
                 theme.document.canvas.profile_name().unwrap_or("Custom"),
@@ -1188,12 +1184,16 @@ impl App {
                 theme.document.canvas.height,
             ))
             .size(design::typography::CAPTION)
-            .color(design::TEXT_SECONDARY),
+            .color(design::TEXT_SECONDARY)
+            .into()
+        };
+        let details = column![
+            text(&theme.document.theme.name)
+                .size(design::typography::HEADING)
+                .color(design::TEXT_PRIMARY),
+            size_details,
         ]
         .spacing(design::spacing::XS);
-        if let Some(variant_picker) = variant_picker {
-            details = details.push(variant_picker);
-        }
         let mut card = column![
             row![details, space::horizontal().width(Length::Fill), actions,]
                 .align_y(Alignment::Center),
