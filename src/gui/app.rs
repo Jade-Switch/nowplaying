@@ -102,8 +102,8 @@ enum Message {
     ThemesRefreshed(Result<ThemeDiscovery, String>),
     ImportTheme,
     ChooseImportFile,
-    ImportFileChosen(Option<PathBuf>),
-    ImportFileLoaded(Result<(String, String), String>),
+    ImportFileChosen(u64, Option<PathBuf>),
+    ImportFileLoaded(u64, Result<(String, String), String>),
     ImportFileHovered(window::Id, Option<PathBuf>),
     ImportFileDropped(window::Id, PathBuf),
     ImportTextEdited(text_editor::Action),
@@ -163,6 +163,9 @@ struct App {
     status_message: Option<String>,
     confirming_delete: Option<String>,
     import_open: bool,
+    import_session_id: u64,
+    file_picker_active: bool,
+    file_picker_session_id: Option<u64>,
     import_content: text_editor::Content,
     import_filename: Option<String>,
     import_error: Option<String>,
@@ -230,6 +233,9 @@ impl App {
             status_message: None,
             confirming_delete: None,
             import_open: false,
+            import_session_id: 0,
+            file_picker_active: false,
+            file_picker_session_id: None,
             import_content: text_editor::Content::new(),
             import_filename: None,
             import_error: None,
@@ -286,6 +292,7 @@ impl App {
                 Task::none()
             }
             Message::ImportTheme => {
+                self.import_session_id = self.import_session_id.wrapping_add(1);
                 self.import_open = true;
                 self.import_content = text_editor::Content::new();
                 self.import_filename = None;
@@ -294,12 +301,38 @@ impl App {
                 Task::none()
             }
             Message::ChooseImportFile => {
-                Task::perform(pick_theme_file(), Message::ImportFileChosen)
+                if !begin_file_picker(
+                    &mut self.file_picker_active,
+                    &mut self.file_picker_session_id,
+                    self.import_open,
+                    self.import_session_id,
+                ) {
+                    return Task::none();
+                }
+                let session_id = self.import_session_id;
+                Task::perform(pick_theme_file(), move |selection| {
+                    Message::ImportFileChosen(session_id, selection)
+                })
             }
-            Message::ImportFileChosen(Some(path)) => {
-                Task::perform(read_import_file(path), Message::ImportFileLoaded)
+            Message::ImportFileChosen(session_id, selection) => {
+                let current = finish_file_picker(
+                    &mut self.file_picker_active,
+                    &mut self.file_picker_session_id,
+                    session_id,
+                    self.import_open,
+                    self.import_session_id,
+                );
+                if !current {
+                    return Task::none();
+                }
+                if let Some(path) = selection {
+                    Task::perform(read_import_file(path), move |result| {
+                        Message::ImportFileLoaded(session_id, result)
+                    })
+                } else {
+                    Task::none()
+                }
             }
-            Message::ImportFileChosen(None) => Task::none(),
             Message::ImportFileHovered(id, path) => {
                 if Some(id) == self.window_id {
                     self.import_drag_hover = path.is_some_and(|path| is_theme_path(&path));
@@ -309,20 +342,27 @@ impl App {
             Message::ImportFileDropped(id, path) => {
                 if Some(id) == self.window_id && is_theme_path(&path) {
                     self.import_drag_hover = false;
-                    return Task::perform(read_import_file(path), Message::ImportFileLoaded);
+                    let session_id = self.import_session_id;
+                    return Task::perform(read_import_file(path), move |result| {
+                        Message::ImportFileLoaded(session_id, result)
+                    });
                 }
                 Task::none()
             }
-            Message::ImportFileLoaded(Ok((filename, contents))) => {
-                self.import_content = text_editor::Content::with_text(&contents);
-                self.import_filename = Some(filename);
-                self.import_error = None;
+            Message::ImportFileLoaded(session_id, result)
+                if self.import_open && session_id == self.import_session_id =>
+            {
+                match result {
+                    Ok((filename, contents)) => {
+                        self.import_content = text_editor::Content::with_text(&contents);
+                        self.import_filename = Some(filename);
+                        self.import_error = None;
+                    }
+                    Err(error) => self.import_error = Some(error),
+                }
                 Task::none()
             }
-            Message::ImportFileLoaded(Err(error)) => {
-                self.import_error = Some(error);
-                Task::none()
-            }
+            Message::ImportFileLoaded(_, _) => Task::none(),
             Message::ImportTextEdited(action) => {
                 self.import_content.perform(action);
                 if self.import_content.text().len() > MAX_THEME_FILE_BYTES {
@@ -533,6 +573,7 @@ impl App {
                 Task::none()
             }
             Message::CloseRequested(id) => {
+                self.import_open = false;
                 if self.tray_available.load(Ordering::Relaxed) {
                     self.window_id = None;
                     window::close(id)
@@ -683,7 +724,9 @@ impl App {
                 button(text("Choose file").size(design::typography::BODY))
                     .padding([design::spacing::SM, design::spacing::MD])
                     .style(design::secondary_button)
-                    .on_press(Message::ChooseImportFile),
+                    .on_press_maybe(
+                        (!self.file_picker_active).then_some(Message::ChooseImportFile)
+                    ),
             ]
             .align_y(Alignment::Center),
         )
@@ -724,6 +767,7 @@ impl App {
             )
             .padding(design::spacing::SM)
             .width(Length::Fill)
+            .clip(true)
             .style(|_| design::elevated_surface()),
         ]
         .spacing(design::spacing::MD);
@@ -1288,6 +1332,35 @@ fn open_system_path(path: PathBuf) -> Task<Message> {
     )
 }
 
+fn begin_file_picker(
+    active: &mut bool,
+    picker_session_id: &mut Option<u64>,
+    import_open: bool,
+    session_id: u64,
+) -> bool {
+    if !import_open || *active {
+        return false;
+    }
+    *active = true;
+    *picker_session_id = Some(session_id);
+    true
+}
+
+fn finish_file_picker(
+    active: &mut bool,
+    picker_session_id: &mut Option<u64>,
+    request_session_id: u64,
+    import_open: bool,
+    current_session_id: u64,
+) -> bool {
+    if !*active || *picker_session_id != Some(request_session_id) {
+        return false;
+    }
+    *active = false;
+    *picker_session_id = None;
+    import_open && current_session_id == request_session_id
+}
+
 async fn pick_theme_file() -> Option<PathBuf> {
     if let Ok(Some(selection)) = tokio::task::spawn_blocking(pick_with_kdialog).await {
         return selection;
@@ -1298,6 +1371,83 @@ async fn pick_theme_file() -> Option<PathBuf> {
         .pick_file()
         .await
         .map(|file| file.path().to_owned())
+}
+
+#[cfg(test)]
+mod import_picker_tests {
+    use super::{begin_file_picker, finish_file_picker};
+
+    #[test]
+    fn only_one_picker_starts_for_repeated_clicks() {
+        let (mut active, mut picker_session) = (false, None);
+        assert!(begin_file_picker(&mut active, &mut picker_session, true, 7));
+        assert!(!begin_file_picker(
+            &mut active,
+            &mut picker_session,
+            true,
+            7
+        ));
+        assert!(active);
+        assert_eq!(picker_session, Some(7));
+    }
+
+    #[test]
+    fn completion_releases_picker_after_selection_or_cancellation() {
+        for _selection in [Some("theme.toml"), None] {
+            let (mut active, mut picker_session) = (false, None);
+            assert!(begin_file_picker(&mut active, &mut picker_session, true, 3));
+            assert!(finish_file_picker(
+                &mut active,
+                &mut picker_session,
+                3,
+                true,
+                3
+            ));
+            assert!(!active);
+            assert_eq!(picker_session, None);
+        }
+    }
+
+    #[test]
+    fn stale_result_releases_picker_but_cannot_update_reopened_importer() {
+        let (mut active, mut picker_session) = (false, None);
+        assert!(begin_file_picker(
+            &mut active,
+            &mut picker_session,
+            true,
+            10
+        ));
+        // Cancel and reopen the importer while its picker is still running.
+        assert!(!finish_file_picker(
+            &mut active,
+            &mut picker_session,
+            10,
+            true,
+            11
+        ));
+        assert!(!active);
+        assert_eq!(picker_session, None);
+        assert!(begin_file_picker(
+            &mut active,
+            &mut picker_session,
+            true,
+            11
+        ));
+    }
+
+    #[test]
+    fn picker_completion_after_close_releases_lock() {
+        let (mut active, mut picker_session) = (false, None);
+        assert!(begin_file_picker(&mut active, &mut picker_session, true, 4));
+        assert!(!finish_file_picker(
+            &mut active,
+            &mut picker_session,
+            4,
+            false,
+            4
+        ));
+        assert!(!active);
+    }
 }
 
 fn is_theme_path(path: &std::path::Path) -> bool {
