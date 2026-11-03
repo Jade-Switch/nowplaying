@@ -61,7 +61,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          flatpak-builder --user --force-clean --repo="$RUNNER_TEMP/flatpak-repo" \
+          flatpak-builder --user --default-branch=stable --force-clean --repo="$RUNNER_TEMP/flatpak-repo" \
             "$RUNNER_TEMP/flatpak-build" \
             packaging/flatpak/io.github.JadeSwitch.nowplaying.yml
           flatpak build-bundle "$RUNNER_TEMP/flatpak-repo" \

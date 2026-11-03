@@ -85,8 +85,16 @@ pub async fn start(
     commands: UnboundedSender<TrayCommand>,
     available: Arc<AtomicBool>,
 ) -> Result<ksni::Handle<StudioTray>, ksni::Error> {
-    StudioTray::new(commands, available)
-        .assume_sni_available(true)
-        .spawn()
-        .await
+    if std::env::var_os("FLATPAK_ID").is_some() {
+        StudioTray::new(commands, available)
+            .disable_dbus_name(true)
+            .assume_sni_available(true)
+            .spawn()
+            .await
+    } else {
+        StudioTray::new(commands, available)
+            .assume_sni_available(true)
+            .spawn()
+            .await
+    }
 }

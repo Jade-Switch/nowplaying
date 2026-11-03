@@ -10,11 +10,9 @@ finish-args:
   - --env=NOWPLAYING_APP_ID=io.github.JadeSwitch.nowplaying
   - --share=network
   - --socket=wayland
-  - --talk-name=org.freedesktop.DBus
   - --talk-name=org.freedesktop.portal.Desktop
   - --talk-name=org.mpris.MediaPlayer2.*
   - --talk-name=org.kde.StatusNotifierWatcher
-  - --own-name=org.kde.StatusNotifierItem-*
 
 modules:
   - name: nowplaying
