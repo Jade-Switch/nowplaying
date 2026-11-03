@@ -85,6 +85,8 @@ pub struct ThemeDocument {
 pub struct ThemeIdentity {
     pub id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family_id: Option<String>,
     pub version: String,
     pub format_version: u32,
     #[serde(default)]
@@ -347,6 +349,142 @@ pub struct ThemeDiscovery {
     pub issues: Vec<ThemeIssue>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThemeSelectorGroup {
+    pub key: String,
+    pub family_id: Option<String>,
+    pub label: String,
+    pub theme_ids: Vec<String>,
+    pub warning: Option<String>,
+}
+
+impl ThemeSelectorGroup {
+    pub fn preferred_variant_id(
+        &self,
+        active_theme_id: Option<&str>,
+        remembered_variants: &BTreeMap<String, String>,
+    ) -> Option<String> {
+        if let Some(active_theme_id) = active_theme_id
+            && self.theme_ids.iter().any(|id| id == active_theme_id)
+        {
+            return Some(active_theme_id.to_owned());
+        }
+        if let Some(family_id) = &self.family_id
+            && let Some(remembered) = remembered_variants.get(family_id)
+            && self.theme_ids.contains(remembered)
+        {
+            return Some(remembered.clone());
+        }
+        self.theme_ids.first().cloned()
+    }
+}
+
+impl ThemeDiscovery {
+    /// Groups compatible family members and keeps malformed families visible
+    /// as separate entries with a warning.
+    pub fn selector_groups(&self) -> Vec<ThemeSelectorGroup> {
+        let mut families: BTreeMap<String, Vec<&Arc<LoadedTheme>>> = BTreeMap::new();
+        let mut groups = Vec::new();
+
+        for (id, theme) in &self.themes {
+            if let Some(family_id) = &theme.document.theme.family_id {
+                families.entry(family_id.clone()).or_default().push(theme);
+            } else {
+                groups.push(ThemeSelectorGroup {
+                    key: id.clone(),
+                    family_id: None,
+                    label: theme.document.theme.name.clone(),
+                    theme_ids: vec![id.clone()],
+                    warning: None,
+                });
+            }
+        }
+
+        for (family_id, mut variants) in families {
+            variants.sort_by_key(|theme| variant_sort_key(theme));
+            let name = variants[0].document.theme.name.clone();
+            let family_name_matches = variants
+                .iter()
+                .all(|theme| theme.document.theme.name == name);
+            let authors: std::collections::BTreeSet<_> = variants
+                .iter()
+                .filter_map(|theme| theme.document.theme.author.as_deref())
+                .collect();
+            let authors_match = authors.len() <= 1;
+
+            if !family_name_matches || !authors_match {
+                let warning = if !family_name_matches && !authors_match {
+                    format!(
+                        "Family {family_id} has mismatched names and authors; variants are listed separately."
+                    )
+                } else if !family_name_matches {
+                    format!(
+                        "Family {family_id} has mismatched display names; variants are listed separately."
+                    )
+                } else {
+                    format!(
+                        "Family {family_id} has incompatible authors; variants are listed separately."
+                    )
+                };
+                for theme in variants {
+                    let id = theme.id().to_owned();
+                    groups.push(ThemeSelectorGroup {
+                        key: id.clone(),
+                        family_id: None,
+                        label: format!("{} ({id})", theme.document.theme.name),
+                        theme_ids: vec![id],
+                        warning: Some(warning.clone()),
+                    });
+                }
+                continue;
+            }
+
+            let mut dimensions = BTreeMap::new();
+            for theme in &variants {
+                let canvas = &theme.document.canvas;
+                *dimensions.entry((canvas.width, canvas.height)).or_insert(0) += 1;
+            }
+            let duplicate_dimensions = dimensions.values().any(|count| *count > 1);
+            let theme_ids = variants.iter().map(|theme| theme.id().to_owned()).collect();
+            groups.push(ThemeSelectorGroup {
+                key: family_id.clone(),
+                family_id: Some(family_id),
+                label: name,
+                theme_ids,
+                warning: duplicate_dimensions.then(|| {
+                    "Multiple variants use the same dimensions; their IDs distinguish them in the size menu.".to_owned()
+                }),
+            });
+        }
+
+        groups.sort_by(|left, right| {
+            left.label
+                .to_lowercase()
+                .cmp(&right.label.to_lowercase())
+                .then_with(|| left.key.cmp(&right.key))
+        });
+        groups
+    }
+}
+
+fn variant_sort_key(theme: &LoadedTheme) -> (u8, u32, u32, String) {
+    let canvas = &theme.document.canvas;
+    let profile_order = match canvas.profile_name() {
+        Some("Slim") => 0,
+        Some("Compact") => 1,
+        Some("Standard") => 2,
+        Some("Wide") => 3,
+        Some("Ultra-wide") => 4,
+        _ => 5,
+    };
+    (
+        profile_order,
+        canvas.width,
+        canvas.height,
+        theme.id().to_owned(),
+    )
+}
+
 #[derive(Debug, Clone)]
 pub struct ThemeIssue {
     pub path: PathBuf,
@@ -487,6 +625,13 @@ fn validate_document(
     let identity = &document.theme;
     if !valid_theme_id(&identity.id) {
         return invalid("theme.id must use lowercase letters, digits and hyphens");
+    }
+    if identity
+        .family_id
+        .as_deref()
+        .is_some_and(|family_id| !valid_theme_id(family_id))
+    {
+        return invalid("theme.family_id must use lowercase letters, digits and hyphens");
     }
     validate_text("theme.name", &identity.name, 128, true)?;
     if let Some(author) = &identity.author {
@@ -659,13 +804,37 @@ impl ThemeManager {
     }
 
     pub async fn refresh(&self) -> Result<ThemeDiscovery, ThemeError> {
+        let _mutation = self.mutation.lock().await;
         let discovery = self.loader.discover(&self.themes_dir).await?;
         *self.catalog.write().await = discovery.clone();
+        let active = self.active.read().await.clone();
+        if let Some(active) = active
+            && !discovery.themes.contains_key(active.id())
+            && let Some(family_id) = active.document.theme.family_id.as_deref()
+            && let Some(group) = discovery
+                .selector_groups()
+                .into_iter()
+                .find(|group| group.family_id.as_deref() == Some(family_id))
+        {
+            let remembered = self.selected_family_variants().await;
+            if let Some(fallback_id) = group.preferred_variant_id(None, &remembered)
+                && let Some(fallback) = discovery.themes.get(&fallback_id).cloned()
+            {
+                *self.active.write().await = Some(fallback);
+                self.notify_theme_change();
+            }
+        }
         Ok(discovery)
     }
 
     pub async fn catalog(&self) -> ThemeDiscovery {
         self.catalog.read().await.clone()
+    }
+
+    pub async fn selected_family_variants(&self) -> BTreeMap<String, String> {
+        read_selected_family_variants(&self.settings_path)
+            .await
+            .unwrap_or_default()
     }
 
     pub async fn active(&self) -> Option<Arc<LoadedTheme>> {
@@ -711,7 +880,12 @@ impl ThemeManager {
             .get(id)
             .cloned()
             .ok_or_else(|| ThemeError::NotFound(id.to_owned()))?;
-        save_selected_id(&self.settings_path, id).await?;
+        save_selected_id(
+            &self.settings_path,
+            id,
+            theme.document.theme.family_id.as_deref(),
+        )
+        .await?;
         *self.active.write().await = Some(theme.clone());
         self.notify_theme_change();
         Ok(theme)
@@ -745,7 +919,32 @@ impl ThemeManager {
         let Some(id) = read_selected_id(&self.settings_path).await? else {
             return Ok(None);
         };
-        self.select(&id).await.map(Some)
+        if self.catalog.read().await.themes.contains_key(&id) {
+            return self.select(&id).await.map(Some);
+        }
+
+        let family_id = read_selected_family_id(&self.settings_path).await?;
+        if let Some(family_id) = family_id {
+            let catalog = self.catalog.read().await.clone();
+            if let Some(group) = catalog
+                .selector_groups()
+                .into_iter()
+                .find(|group| group.family_id.as_deref() == Some(&family_id))
+            {
+                let remembered = self
+                    .selected_family_variants()
+                    .await
+                    .get(&family_id)
+                    .filter(|variant_id| group.theme_ids.contains(variant_id))
+                    .cloned();
+                let fallback_id = remembered.or_else(|| group.theme_ids.first().cloned());
+                if let Some(fallback_id) = fallback_id {
+                    return self.activate(&fallback_id).await.map(Some);
+                }
+            }
+        }
+
+        Err(ThemeError::NotFound(id))
     }
 
     pub async fn import_file(
@@ -841,7 +1040,59 @@ pub async fn read_selected_id(
     Ok(id)
 }
 
-async fn save_selected_id(path: &Path, id: &str) -> Result<(), ThemeError> {
+async fn read_selected_family_id(path: &Path) -> Result<Option<String>, ThemeError> {
+    let bytes = match read_limited(path, MAX_SETTINGS_BYTES).await {
+        Ok(bytes) => bytes,
+        Err(ThemeError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(None);
+        }
+        Err(ThemeError::TooLarge) => return Err(ThemeError::InvalidSettings),
+        Err(error) => return Err(error),
+    };
+    let value: toml::Value = toml::from_slice(&bytes).map_err(|_| ThemeError::InvalidSettings)?;
+    Ok(value
+        .as_table()
+        .and_then(|table| table.get("selected_theme_family_id"))
+        .and_then(toml::Value::as_str)
+        .filter(|family_id| valid_theme_id(family_id))
+        .map(str::to_owned))
+}
+
+async fn read_selected_family_variants(
+    path: &Path,
+) -> Result<BTreeMap<String, String>, ThemeError> {
+    let bytes = match read_limited(path, MAX_SETTINGS_BYTES).await {
+        Ok(bytes) => bytes,
+        Err(ThemeError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(BTreeMap::new());
+        }
+        Err(ThemeError::TooLarge) => return Err(ThemeError::InvalidSettings),
+        Err(error) => return Err(error),
+    };
+    let value: toml::Value = toml::from_slice(&bytes).map_err(|_| ThemeError::InvalidSettings)?;
+    let mut variants = BTreeMap::new();
+    if let Some(entries) = value
+        .as_table()
+        .and_then(|table| table.get("selected_theme_variants"))
+        .and_then(toml::Value::as_table)
+    {
+        for (family_id, theme_id) in entries {
+            if valid_theme_id(family_id)
+                && let Some(theme_id) = theme_id.as_str()
+                && valid_theme_id(theme_id)
+            {
+                variants.insert(family_id.clone(), theme_id.to_owned());
+            }
+        }
+    }
+    Ok(variants)
+}
+
+async fn save_selected_id(
+    path: &Path,
+    id: &str,
+    family_id: Option<&str>,
+) -> Result<(), ThemeError> {
     if !valid_theme_id(id) {
         return Err(ThemeError::InvalidSettings);
     }
@@ -859,6 +1110,23 @@ async fn save_selected_id(path: &Path, id: &str) -> Result<(), ThemeError> {
         "selected_theme_id".into(),
         toml::Value::String(id.to_owned()),
     );
+    if let Some(family_id) = family_id {
+        if !valid_theme_id(family_id) {
+            return Err(ThemeError::InvalidSettings);
+        }
+        table.insert(
+            "selected_theme_family_id".into(),
+            toml::Value::String(family_id.to_owned()),
+        );
+        let variants = table
+            .entry("selected_theme_variants")
+            .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
+            .as_table_mut()
+            .ok_or(ThemeError::InvalidSettings)?;
+        variants.insert(family_id.to_owned(), toml::Value::String(id.to_owned()));
+    } else {
+        table.remove("selected_theme_family_id");
+    }
     let serialized = toml::to_string_pretty(&settings).map_err(|_| ThemeError::InvalidSettings)?;
     if serialized.len() > MAX_SETTINGS_BYTES {
         return Err(ThemeError::InvalidSettings);
@@ -980,6 +1248,34 @@ template = "<main id='player'></main>"
 
     fn loader() -> ThemeLoader {
         ThemeLoader::new("1.2.0").unwrap()
+    }
+
+    fn family_theme(
+        id: &str,
+        name: &str,
+        family_id: Option<&str>,
+        author: Option<&str>,
+        width: u32,
+        height: u32,
+    ) -> String {
+        let family = family_id
+            .map(|family_id| format!("family_id = \"{family_id}\"\n"))
+            .unwrap_or_default();
+        let author = author
+            .map(|author| format!("author = \"{author}\"\n"))
+            .unwrap_or_default();
+        format!(
+            "[theme]\nid = \"{id}\"\nname = \"{name}\"\n{family}version = \"1.0.0\"\nformat_version = 1\n{author}\n[theme.compatibility]\nminimum_runtime = \"1.0.0\"\n\n[canvas]\nwidth = {width}\nheight = {height}\n\n[html]\ntemplate = \"<main>{id}</main>\"\n\n[css]\nstylesheet = \".root {{ width: {width}px; height: {height}px; }}\"\n"
+        )
+    }
+
+    fn discovery_from_themes(sources: &[String]) -> ThemeDiscovery {
+        let mut discovery = ThemeDiscovery::default();
+        for source in sources {
+            let theme = Arc::new(loader().parse(source.as_bytes()).unwrap());
+            discovery.themes.insert(theme.id().to_owned(), theme);
+        }
+        discovery
     }
 
     #[test]
@@ -1105,6 +1401,218 @@ template = "<main id='player'></main>"
     }
 
     #[test]
+    fn family_metadata_is_optional_validated_and_keeps_legacy_themes_independent() {
+        let legacy = loader().parse(VALID_THEME.as_bytes()).unwrap();
+        assert_eq!(legacy.document.theme.family_id, None);
+        let mut invalid = family_theme("bad-family", "Bad Family", Some("Bad-ID"), None, 420, 120);
+        assert!(matches!(
+            loader().parse(invalid.as_bytes()),
+            Err(ThemeError::InvalidManifest(_))
+        ));
+        invalid = family_theme(
+            "valid-family",
+            "Valid Family",
+            Some("valid-family"),
+            None,
+            420,
+            120,
+        );
+        assert_eq!(
+            loader()
+                .parse(invalid.as_bytes())
+                .unwrap()
+                .document
+                .theme
+                .family_id
+                .as_deref(),
+            Some("valid-family")
+        );
+    }
+
+    #[test]
+    fn family_groups_compact_and_wide_variants_once_in_profile_order() {
+        let discovery = discovery_from_themes(&[
+            family_theme(
+                "dreamwave-wide",
+                "Dreamwave",
+                Some("dreamwave"),
+                Some("NPS"),
+                960,
+                150,
+            ),
+            family_theme(
+                "dreamwave-compact",
+                "Dreamwave",
+                Some("dreamwave"),
+                Some("NPS"),
+                420,
+                120,
+            ),
+        ]);
+        let groups = discovery.selector_groups();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].label, "Dreamwave");
+        assert_eq!(groups[0].family_id.as_deref(), Some("dreamwave"));
+        assert_eq!(groups[0].theme_ids, ["dreamwave-compact", "dreamwave-wide"]);
+        assert_eq!(groups[0].warning, None);
+    }
+
+    #[test]
+    fn standalone_themes_with_the_same_display_name_remain_separate() {
+        let discovery = discovery_from_themes(&[
+            family_theme("same-name-a", "Same Name", None, None, 420, 120),
+            family_theme("same-name-b", "Same Name", None, None, 960, 150),
+        ]);
+        let groups = discovery.selector_groups();
+        assert_eq!(groups.len(), 2);
+        assert!(groups.iter().all(|group| group.family_id.is_none()));
+        assert!(groups.iter().all(|group| group.theme_ids.len() == 1));
+    }
+
+    #[test]
+    fn family_can_contain_all_official_profiles() {
+        let sources = [
+            ("slim", 420, 64),
+            ("compact", 420, 120),
+            ("standard", 800, 150),
+            ("wide", 960, 150),
+            ("ultra", 1000, 180),
+        ]
+        .into_iter()
+        .map(|(suffix, width, height)| {
+            family_theme(
+                &format!("orbit-{suffix}"),
+                "Orbit",
+                Some("orbit"),
+                None,
+                width,
+                height,
+            )
+        })
+        .collect::<Vec<_>>();
+        let groups = discovery_from_themes(&sources).selector_groups();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].theme_ids.len(), 5);
+    }
+
+    #[test]
+    fn singleton_families_custom_sizes_and_multiple_families_are_preserved() {
+        let discovery = discovery_from_themes(&[
+            family_theme("single-one", "Single", Some("single"), None, 800, 150),
+            family_theme("custom-a", "Custom", Some("custom"), None, 700, 200),
+            family_theme("custom-b", "Custom", Some("custom"), None, 730, 210),
+            family_theme("other-a", "Other", Some("other"), None, 420, 120),
+            VALID_THEME.to_owned(),
+        ]);
+        let groups = discovery.selector_groups();
+        assert_eq!(groups.len(), 4);
+        let single = groups.iter().find(|group| group.key == "single").unwrap();
+        assert_eq!(single.theme_ids.len(), 1);
+        let custom = groups.iter().find(|group| group.key == "custom").unwrap();
+        assert_eq!(custom.theme_ids.len(), 2);
+        assert!(groups.iter().any(|group| group.key == "sample-player"));
+        assert!(groups.iter().any(|group| group.key == "other"));
+    }
+
+    #[test]
+    fn family_default_uses_remembered_variant_and_recovers_from_stale_ids() {
+        let discovery = discovery_from_themes(&[
+            family_theme("return-compact", "Return", Some("return"), None, 420, 120),
+            family_theme("return-wide", "Return", Some("return"), None, 960, 150),
+        ]);
+        let groups = discovery.selector_groups();
+        let group = groups.iter().find(|group| group.key == "return").unwrap();
+        let remembered = BTreeMap::from([("return".to_owned(), "return-wide".to_owned())]);
+        assert_eq!(
+            group.preferred_variant_id(Some("another-theme"), &remembered),
+            Some("return-wide".to_owned())
+        );
+        assert_eq!(
+            group.preferred_variant_id(Some("return-compact"), &remembered),
+            Some("return-compact".to_owned())
+        );
+        let stale = BTreeMap::from([("return".to_owned(), "removed-variant".to_owned())]);
+        assert_eq!(
+            group.preferred_variant_id(None, &stale),
+            Some("return-compact".to_owned())
+        );
+    }
+
+    #[test]
+    fn inconsistent_family_metadata_stays_visible_as_separate_entries() {
+        let discovery = discovery_from_themes(&[
+            family_theme(
+                "name-one",
+                "First",
+                Some("conflict"),
+                Some("Author"),
+                420,
+                120,
+            ),
+            family_theme(
+                "name-two",
+                "Second",
+                Some("conflict"),
+                Some("Author"),
+                960,
+                150,
+            ),
+            family_theme(
+                "author-one",
+                "Authors",
+                Some("authors"),
+                Some("A"),
+                800,
+                150,
+            ),
+            family_theme(
+                "author-two",
+                "Authors",
+                Some("authors"),
+                Some("B"),
+                1000,
+                180,
+            ),
+        ]);
+        let groups = discovery.selector_groups();
+        assert_eq!(groups.len(), 4);
+        assert!(groups.iter().all(|group| group.theme_ids.len() == 1));
+        assert!(groups.iter().all(|group| group.warning.is_some()));
+    }
+
+    #[test]
+    fn duplicate_family_dimensions_are_reported_without_hiding_variants() {
+        let discovery = discovery_from_themes(&[
+            family_theme(
+                "duplicate-a",
+                "Duplicate",
+                Some("duplicate"),
+                None,
+                420,
+                120,
+            ),
+            family_theme(
+                "duplicate-b",
+                "Duplicate",
+                Some("duplicate"),
+                None,
+                420,
+                120,
+            ),
+        ]);
+        let groups = discovery.selector_groups();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].theme_ids, ["duplicate-a", "duplicate-b"]);
+        assert!(
+            groups[0]
+                .warning
+                .as_deref()
+                .unwrap()
+                .contains("same dimensions")
+        );
+    }
+
+    #[test]
     fn invalid_toml_required_fields_versions_and_compatibility_are_rejected() {
         assert!(matches!(
             loader().parse(b"[theme\nid = \"broken\""),
@@ -1162,13 +1670,37 @@ template = "<main id='player'></main>"
         tokio::fs::write(dir.0.join("invalid.toml"), "not = [valid")
             .await
             .unwrap();
+        tokio::fs::write(
+            dir.0.join("invalid-family.toml"),
+            family_theme(
+                "invalid-family",
+                "Invalid Family",
+                Some("Bad-ID"),
+                None,
+                420,
+                120,
+            ),
+        )
+        .await
+        .unwrap();
         tokio::fs::write(dir.0.join("notes.txt"), "ignored")
             .await
             .unwrap();
         let found = loader().discover(&dir.0).await.unwrap();
         assert!(found.themes.contains_key("sample-player"));
-        assert_eq!(found.issues.len(), 1);
-        assert_eq!(found.issues[0].path.file_name().unwrap(), "invalid.toml");
+        assert_eq!(found.issues.len(), 2);
+        assert!(
+            found
+                .issues
+                .iter()
+                .any(|issue| { issue.path.file_name().unwrap() == "invalid.toml" })
+        );
+        assert!(
+            found
+                .issues
+                .iter()
+                .any(|issue| { issue.path.file_name().unwrap() == "invalid-family.toml" })
+        );
     }
 
     #[tokio::test]
@@ -1252,6 +1784,192 @@ template = "<main id='player'></main>"
                 .unwrap(),
             VALID_THEME.as_bytes()
         );
+    }
+
+    #[tokio::test]
+    async fn family_variant_selection_persists_by_theme_id_and_restores() {
+        let dir = TestDirectory::new("family-persist");
+        let themes_dir = dir.0.join("themes");
+        let settings = dir.0.join("settings.toml");
+        tokio::fs::create_dir_all(&themes_dir).await.unwrap();
+        tokio::fs::write(
+            themes_dir.join("dreamwave-compact.toml"),
+            family_theme(
+                "dreamwave-compact",
+                "Dreamwave",
+                Some("dreamwave"),
+                None,
+                420,
+                120,
+            ),
+        )
+        .await
+        .unwrap();
+        tokio::fs::write(
+            themes_dir.join("dreamwave-wide.toml"),
+            family_theme(
+                "dreamwave-wide",
+                "Dreamwave",
+                Some("dreamwave"),
+                None,
+                960,
+                150,
+            ),
+        )
+        .await
+        .unwrap();
+        tokio::fs::write(themes_dir.join("sample-player.toml"), VALID_THEME)
+            .await
+            .unwrap();
+
+        let manager = ThemeManager::new(&themes_dir, &settings, loader())
+            .await
+            .unwrap();
+        manager.refresh().await.unwrap();
+        manager.select("dreamwave-wide").await.unwrap();
+        assert_eq!(
+            read_selected_id(&settings).await.unwrap().as_deref(),
+            Some("dreamwave-wide")
+        );
+        assert_eq!(
+            manager
+                .selected_family_variants()
+                .await
+                .get("dreamwave")
+                .map(String::as_str),
+            Some("dreamwave-wide")
+        );
+
+        let restored = ThemeManager::new(&themes_dir, &settings, loader())
+            .await
+            .unwrap();
+        restored.refresh().await.unwrap();
+        assert_eq!(
+            restored.restore_selection().await.unwrap().unwrap().id(),
+            "dreamwave-wide"
+        );
+        restored.select("sample-player").await.unwrap();
+        assert_eq!(
+            restored
+                .selected_family_variants()
+                .await
+                .get("dreamwave")
+                .map(String::as_str),
+            Some("dreamwave-wide")
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_selected_family_variant_falls_back_without_rewriting_choice() {
+        let dir = TestDirectory::new("family-fallback");
+        let themes_dir = dir.0.join("themes");
+        let settings = dir.0.join("settings.toml");
+        tokio::fs::create_dir_all(&themes_dir).await.unwrap();
+        tokio::fs::write(
+            themes_dir.join("dreamwave-compact.toml"),
+            family_theme(
+                "dreamwave-compact",
+                "Dreamwave",
+                Some("dreamwave"),
+                None,
+                420,
+                120,
+            ),
+        )
+        .await
+        .unwrap();
+        tokio::fs::write(
+            themes_dir.join("dreamwave-wide.toml"),
+            family_theme(
+                "dreamwave-wide",
+                "Dreamwave",
+                Some("dreamwave"),
+                None,
+                960,
+                150,
+            ),
+        )
+        .await
+        .unwrap();
+        let manager = ThemeManager::new(&themes_dir, &settings, loader())
+            .await
+            .unwrap();
+        manager.refresh().await.unwrap();
+        manager.select("dreamwave-wide").await.unwrap();
+        tokio::fs::remove_file(themes_dir.join("dreamwave-wide.toml"))
+            .await
+            .unwrap();
+        manager.refresh().await.unwrap();
+        assert_eq!(manager.active().await.unwrap().id(), "dreamwave-compact");
+        assert_eq!(
+            read_selected_id(&settings).await.unwrap().as_deref(),
+            Some("dreamwave-wide")
+        );
+
+        let restored = ThemeManager::new(&themes_dir, &settings, loader())
+            .await
+            .unwrap();
+        restored.refresh().await.unwrap();
+        assert_eq!(
+            restored.restore_selection().await.unwrap().unwrap().id(),
+            "dreamwave-compact"
+        );
+        assert_eq!(
+            read_selected_id(&settings).await.unwrap().as_deref(),
+            Some("dreamwave-wide")
+        );
+    }
+
+    #[tokio::test]
+    async fn imported_theme_can_join_existing_family_and_preview_uses_variant_content() {
+        let dir = TestDirectory::new("family-import");
+        let themes_dir = dir.0.join("themes");
+        let manager = ThemeManager::new(&themes_dir, dir.0.join("settings.toml"), loader())
+            .await
+            .unwrap();
+        let compact = family_theme(
+            "dreamwave-compact",
+            "Dreamwave",
+            Some("dreamwave"),
+            None,
+            420,
+            120,
+        );
+        manager.import_content(&compact).await.unwrap();
+        let wide = family_theme(
+            "dreamwave-wide",
+            "Dreamwave",
+            Some("dreamwave"),
+            None,
+            960,
+            150,
+        );
+        manager.import_content(&wide).await.unwrap();
+
+        let group = manager
+            .catalog()
+            .await
+            .selector_groups()
+            .into_iter()
+            .find(|group| group.family_id.as_deref() == Some("dreamwave"))
+            .unwrap();
+        assert_eq!(group.theme_ids.len(), 2);
+
+        let compact = manager.select("dreamwave-compact").await.unwrap();
+        let compact_preview =
+            crate::runtime::render_theme(&compact, "dGhlbWVub25jZXRoZW1lbm9uY2U").unwrap();
+        assert!(
+            compact_preview
+                .html
+                .contains("<main>dreamwave-compact</main>")
+        );
+        assert!(compact_preview.html.contains("width: 420px;"));
+
+        let selected = manager.select("dreamwave-wide").await.unwrap();
+        let preview =
+            crate::runtime::render_theme(&selected, "dGhlbWVub25jZXRoZW1lbm9uY2U").unwrap();
+        assert!(preview.html.contains("<main>dreamwave-wide</main>"));
+        assert!(preview.html.contains("width: 960px;"));
     }
 
     #[tokio::test]

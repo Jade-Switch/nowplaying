@@ -29,6 +29,11 @@ MANIFEST AND FORMAT
   `description` are optional, but if present must be non-empty; their maximum
   lengths are 128 and 1024 bytes respectively. Use valid semantic versions;
   `minimum_runtime` must not exceed the app version.
+- Optional `[theme].family_id` uses the same ID rules as `theme.id`. Set it
+  only when the theme intentionally belongs to a named family of size or
+  layout variants (the other variants may not be installed yet). All variants
+  in a family must share the same `family_id`, display name, and compatible
+  author metadata. Do not assign a family to unrelated designs.
 - Use only documented top-level tables and fields. Unknown fields are rejected.
 - Include `[canvas]` width and height as the recommended native CSS-pixel
   dimensions. Match the root design's actual CSS size to these dimensions.
@@ -52,6 +57,8 @@ MANIFEST AND FORMAT
   - `[colors]`: `background`, `text`, `muted`, `accent`.
   - `[css]`: `stylesheet`. `[javascript]`: `source`.
   - `[assets.<id>]`: `mime_type`, `data`.
+- `[theme].family_id` is an optional manifest field; do not add a `profile`
+  field. Official size profiles are inferred from canvas dimensions.
 
 THEME CONTENT
 - Make the theme usable before playback starts, while disconnected, and for

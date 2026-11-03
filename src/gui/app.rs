@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fmt,
     path::PathBuf,
     process::Command,
@@ -13,7 +14,7 @@ use crate::{
     artwork::ArtworkCache,
     mpris::{PlayerSelection, PlayerSelector},
     playback::{PlaybackSnapshot, PlaybackStatus, PlayerInfo},
-    theme::{LoadedTheme, MAX_THEME_FILE_BYTES, ThemeDiscovery, ThemeManager},
+    theme::{MAX_THEME_FILE_BYTES, ThemeDiscovery, ThemeManager, ThemeSelectorGroup},
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme, time,
@@ -65,6 +66,18 @@ impl fmt::Display for PlayerChoice {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ThemeVariantChoice {
+    theme_id: String,
+    label: String,
+}
+
+impl fmt::Display for ThemeVariantChoice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.label)
+    }
+}
+
 impl Section {
     const fn label(self) -> &'static str {
         match self {
@@ -80,6 +93,7 @@ pub struct GuiContext {
     pub themes: ThemeManager,
     pub catalog: ThemeDiscovery,
     pub active_theme: Option<String>,
+    pub family_selections: BTreeMap<String, String>,
     pub playback_state: Option<tokio::sync::watch::Receiver<PlaybackSnapshot>>,
     pub players_state: Option<tokio::sync::watch::Receiver<Vec<PlayerInfo>>>,
     pub player_selector: Option<PlayerSelector>,
@@ -99,7 +113,7 @@ enum Message {
     SelectTheme(String),
     ThemeSelected(Result<String, String>),
     RefreshThemes,
-    ThemesRefreshed(Result<ThemeDiscovery, String>),
+    ThemesRefreshed(Result<(ThemeDiscovery, Option<String>), String>),
     ImportTheme,
     ChooseImportFile,
     ImportFileChosen(u64, Option<PathBuf>),
@@ -142,6 +156,7 @@ struct App {
     themes: ThemeManager,
     catalog: ThemeDiscovery,
     active_theme: Option<String>,
+    family_selections: BTreeMap<String, String>,
     playback_state: Option<tokio::sync::watch::Receiver<PlaybackSnapshot>>,
     players_state: Option<tokio::sync::watch::Receiver<Vec<PlayerInfo>>>,
     players: Vec<PlayerInfo>,
@@ -180,6 +195,7 @@ impl App {
             themes,
             catalog,
             active_theme,
+            mut family_selections,
             playback_state,
             players_state,
             player_selector,
@@ -192,6 +208,16 @@ impl App {
             show_requested,
             shutdown_requested,
         } = context;
+        if let Some(active_id) = active_theme.as_deref()
+            && let Some(family_id) = catalog
+                .themes
+                .get(active_id)
+                .and_then(|theme| theme.document.theme.family_id.as_ref())
+        {
+            family_selections
+                .entry(family_id.clone())
+                .or_insert_with(|| active_id.to_owned());
+        }
         let playback = playback_state
             .as_ref()
             .map(|state| state.borrow().clone())
@@ -212,6 +238,7 @@ impl App {
             themes,
             catalog,
             active_theme,
+            family_selections,
             playback_state,
             players_state,
             players,
@@ -268,6 +295,15 @@ impl App {
                 match result {
                     Ok(id) => {
                         self.active_theme = Some(id);
+                        if let Some(theme) = self
+                            .active_theme
+                            .as_deref()
+                            .and_then(|id| self.catalog.themes.get(id))
+                            && let Some(family_id) = &theme.document.theme.family_id
+                        {
+                            self.family_selections
+                                .insert(family_id.clone(), theme.id().to_owned());
+                        }
                         self.status_message = None;
                     }
                     Err(error) => self.status_message = Some(error),
@@ -277,14 +313,19 @@ impl App {
             Message::RefreshThemes => {
                 let themes = self.themes.clone();
                 Task::perform(
-                    async move { themes.refresh().await.map_err(|error| error.to_string()) },
+                    async move {
+                        let catalog = themes.refresh().await.map_err(|error| error.to_string())?;
+                        let active = themes.active().await.map(|theme| theme.id().to_owned());
+                        Ok((catalog, active))
+                    },
                     Message::ThemesRefreshed,
                 )
             }
             Message::ThemesRefreshed(result) => {
                 match result {
-                    Ok(catalog) => {
+                    Ok((catalog, active_theme)) => {
                         self.catalog = catalog;
+                        self.active_theme = active_theme;
                         self.status_message = None;
                     }
                     Err(error) => self.status_message = Some(error),
@@ -444,12 +485,27 @@ impl App {
                         return Task::none();
                     }
                 };
-                let Ok(mut segments) = url.path_segments_mut() else {
-                    self.status_message = Some("Could not build the theme preview URL.".to_owned());
-                    return Task::none();
-                };
-                segments.clear().push("preview").push(&id);
-                drop(segments);
+                let family_id = self
+                    .catalog
+                    .themes
+                    .get(&id)
+                    .and_then(|theme| theme.document.theme.family_id.as_ref());
+                if let Some(family_id) = family_id {
+                    let Ok(mut segments) = url.path_segments_mut() else {
+                        self.status_message =
+                            Some("Could not build the theme preview URL.".to_owned());
+                        return Task::none();
+                    };
+                    segments.clear().push("preview-family").push(family_id);
+                } else if self.active_theme.as_deref() != Some(id.as_str()) {
+                    let Ok(mut segments) = url.path_segments_mut() else {
+                        self.status_message =
+                            Some("Could not build the theme preview URL.".to_owned());
+                        return Task::none();
+                    };
+                    segments.clear().push("preview").push(&id);
+                    drop(segments);
+                }
                 let url = url.to_string();
                 Task::perform(
                     async move {
@@ -920,8 +976,8 @@ impl App {
         .align_y(Alignment::Center);
 
         let mut cards = column!().spacing(design::spacing::MD);
-        for (id, theme) in &self.catalog.themes {
-            cards = cards.push(self.theme_card(id, theme));
+        for group in self.catalog.selector_groups() {
+            cards = cards.push(self.theme_card(&group));
         }
         for issue in &self.catalog.issues {
             cards = cards.push(self.invalid_theme_card(issue));
@@ -1042,8 +1098,16 @@ impl App {
         .into()
     }
 
-    fn theme_card<'a>(&self, id: &'a str, theme: &'a LoadedTheme) -> Element<'a, Message> {
-        let is_active = self.active_theme.as_deref() == Some(id);
+    fn theme_card<'a>(&'a self, group: &ThemeSelectorGroup) -> Element<'a, Message> {
+        let id = group
+            .preferred_variant_id(self.active_theme.as_deref(), &self.family_selections)
+            .expect("theme selector groups contain at least one variant");
+        let theme = self
+            .catalog
+            .themes
+            .get(&id)
+            .expect("theme selector group references a discovered theme");
+        let is_active = self.active_theme.as_deref() == Some(id.as_str());
         let select = button(text(if is_active { "Active" } else { "Select" }))
             .padding([design::spacing::SM, design::spacing::LG])
             .style(if is_active {
@@ -1051,14 +1115,14 @@ impl App {
             } else {
                 design::primary_button
             })
-            .on_press_maybe((!is_active).then(|| Message::SelectTheme(id.to_owned())));
-        let actions: Element<'a, Message> = if self.confirming_delete.as_deref() == Some(id) {
+            .on_press_maybe((!is_active).then(|| Message::SelectTheme(id.clone())));
+        let actions: Element<'a, Message> = if self.confirming_delete.as_deref() == Some(&id) {
             row![
                 text("Delete this theme?").color(design::TEXT_SECONDARY),
                 button(text("Delete"))
                     .padding([design::spacing::SM, design::spacing::MD])
                     .style(design::danger_button)
-                    .on_press(Message::DeleteTheme(id.to_owned())),
+                    .on_press(Message::DeleteTheme(id.clone())),
                 button(text("Cancel"))
                     .padding([design::spacing::SM, design::spacing::MD])
                     .style(design::secondary_button)
@@ -1073,15 +1137,15 @@ impl App {
                 button(text("Preview"))
                     .padding([design::spacing::SM, design::spacing::MD])
                     .style(design::secondary_button)
-                    .on_press(Message::PreviewTheme(id.to_owned())),
+                    .on_press(Message::PreviewTheme(id.clone())),
                 button(text("Edit"))
                     .padding([design::spacing::SM, design::spacing::MD])
                     .style(design::secondary_button)
-                    .on_press(Message::OpenTheme(id.to_owned())),
+                    .on_press(Message::OpenTheme(id.clone())),
                 button(text("Delete"))
                     .padding([design::spacing::SM, design::spacing::MD])
                     .style(design::secondary_button)
-                    .on_press(Message::RequestDeleteTheme(id.to_owned())),
+                    .on_press(Message::RequestDeleteTheme(id.clone())),
             ]
             .spacing(design::spacing::SM)
             .align_y(Alignment::Center)
@@ -1094,40 +1158,91 @@ impl App {
             .description
             .as_deref()
             .unwrap_or("No description provided.");
-        container(
-            column![
-                row![
-                    column![
-                        text(&theme.document.theme.name)
-                            .size(design::typography::HEADING)
-                            .color(design::TEXT_PRIMARY),
-                        text(format!("Version {}", theme.document.theme.version))
-                            .size(design::typography::CAPTION)
-                            .color(design::TEXT_SECONDARY),
-                        text(format!(
-                            "{} · {} × {} px",
-                            theme.document.canvas.profile_name().unwrap_or("Custom"),
-                            theme.document.canvas.width,
-                            theme.document.canvas.height,
-                        ))
-                        .size(design::typography::CAPTION)
-                        .color(design::TEXT_SECONDARY),
-                    ]
-                    .spacing(design::spacing::XS),
-                    space::horizontal().width(Length::Fill),
-                    actions,
-                ]
+        let variant_picker: Option<Element<'a, Message>> = (group.theme_ids.len() > 1).then(|| {
+            let choices = self.theme_variant_choices(group);
+            let selected = choices
+                .iter()
+                .find(|choice| choice.theme_id == id)
+                .expect("selected variant has a dropdown choice")
+                .clone();
+            pick_list(choices, Some(selected), |choice: ThemeVariantChoice| {
+                Message::SelectTheme(choice.theme_id)
+            })
+            .placeholder("Select size")
+            .width(Length::Fixed(230.0))
+            .style(design::dropdown)
+            .menu_style(design::dropdown_menu)
+            .into()
+        });
+        let mut details = column![
+            text(&theme.document.theme.name)
+                .size(design::typography::HEADING)
+                .color(design::TEXT_PRIMARY),
+            text(format!("Version {}", theme.document.theme.version))
+                .size(design::typography::CAPTION)
+                .color(design::TEXT_SECONDARY),
+            text(format!(
+                "{} · {} × {} px",
+                theme.document.canvas.profile_name().unwrap_or("Custom"),
+                theme.document.canvas.width,
+                theme.document.canvas.height,
+            ))
+            .size(design::typography::CAPTION)
+            .color(design::TEXT_SECONDARY),
+        ]
+        .spacing(design::spacing::XS);
+        if let Some(variant_picker) = variant_picker {
+            details = details.push(variant_picker);
+        }
+        let mut card = column![
+            row![details, space::horizontal().width(Length::Fill), actions,]
                 .align_y(Alignment::Center),
-                text(description)
-                    .size(design::typography::BODY)
-                    .color(design::TEXT_SECONDARY),
-            ]
-            .spacing(design::spacing::MD),
-        )
-        .padding(design::spacing::LG)
-        .width(Length::Fill)
-        .style(|_| design::surface())
-        .into()
+            text(description)
+                .size(design::typography::BODY)
+                .color(design::TEXT_SECONDARY),
+        ]
+        .spacing(design::spacing::MD);
+        if let Some(warning) = &group.warning {
+            card = card.push(
+                text(warning.clone())
+                    .size(design::typography::CAPTION)
+                    .color(design::STATUS_ERROR),
+            );
+        }
+        container(card)
+            .padding(design::spacing::LG)
+            .width(Length::Fill)
+            .style(|_| design::surface())
+            .into()
+    }
+
+    fn theme_variant_choices(&self, group: &ThemeSelectorGroup) -> Vec<ThemeVariantChoice> {
+        let mut dimension_counts = BTreeMap::new();
+        for id in &group.theme_ids {
+            if let Some(theme) = self.catalog.themes.get(id) {
+                let canvas = &theme.document.canvas;
+                *dimension_counts
+                    .entry((canvas.width, canvas.height))
+                    .or_insert(0usize) += 1;
+            }
+        }
+        group
+            .theme_ids
+            .iter()
+            .filter_map(|id| {
+                let theme = self.catalog.themes.get(id)?;
+                let canvas = &theme.document.canvas;
+                let profile = canvas.profile_name().unwrap_or("Custom");
+                let mut label = format!("{profile} — {} × {} px", canvas.width, canvas.height);
+                if dimension_counts.get(&(canvas.width, canvas.height)) > Some(&1) {
+                    label.push_str(&format!(" · {}", theme.id()));
+                }
+                Some(ThemeVariantChoice {
+                    theme_id: id.clone(),
+                    label,
+                })
+            })
+            .collect()
     }
 
     fn invalid_theme_card<'a>(&self, issue: &'a crate::theme::ThemeIssue) -> Element<'a, Message> {

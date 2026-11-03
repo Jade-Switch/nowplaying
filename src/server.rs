@@ -113,6 +113,7 @@ fn router(state: ServerState) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/preview/{theme_id}", get(preview_theme))
+        .route("/preview-family/{family_id}", get(preview_family))
         .route(
             "/preview/{theme_id}/assets/{asset_id}",
             get(preview_theme_asset),
@@ -161,6 +162,50 @@ async fn preview_theme(Path(theme_id): Path<String>, State(state): State<ServerS
         Ok(page) => page,
         Err(error) => {
             warn!(%error, theme_id, "Could not render theme preview");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    page.html = page
+        .html
+        .replace("/theme/assets/", &format!("/preview/{theme_id}/assets/"));
+    html_response(page)
+}
+
+async fn preview_family(
+    Path(family_id): Path<String>,
+    State(state): State<ServerState>,
+) -> Response {
+    let catalog = state.themes.catalog().await;
+    let Some(group) = catalog
+        .selector_groups()
+        .into_iter()
+        .find(|group| group.family_id.as_deref() == Some(family_id.as_str()))
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let active = state
+        .themes
+        .active()
+        .await
+        .map(|theme| theme.id().to_owned());
+    let remembered = state.themes.selected_family_variants().await;
+    let Some(theme_id) = group.preferred_variant_id(active.as_deref(), &remembered) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(theme) = catalog.themes.get(&theme_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let nonce = match create_nonce().await {
+        Ok(nonce) => nonce,
+        Err(error) => {
+            warn!(%error, theme_id, "Could not create a family preview CSP nonce");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let mut page = match render_theme(theme, &nonce) {
+        Ok(page) => page,
+        Err(error) => {
+            warn!(%error, theme_id, "Could not render family theme preview");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };

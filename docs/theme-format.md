@@ -109,7 +109,31 @@ Required fields are `[theme]`, `[theme.compatibility]`, and `[html]`.
 `theme.id` uses 1–64 lowercase letters, digits, or hyphens and starts with a
 letter. `version` and `minimum_runtime` are semantic versions.
 `format_version` must be `1` for this format. Optional manifest fields are
-`author` and `description`.
+`author`, `description`, and `family_id`. `family_id` follows the same ID
+rules as `theme.id`. Give all variants in a family the same `family_id` and
+display name; keep any provided author value consistent across variants.
+Themes without a family ID remain standalone. The selector groups by explicit
+family ID only, never by display name or filename.
+
+```toml
+[theme]
+id = "dreamwave-compact"
+name = "Dreamwave"
+family_id = "dreamwave"
+version = "1.0.0"
+format_version = 1
+```
+
+A family with multiple variants appears as one theme card with a size menu.
+The menu is built from variants that actually exist. A single-variant family
+uses the ordinary card. Size names come from the canvas dimensions described
+below; custom sizes show their dimensions. Duplicate dimensions remain
+selectable and are disambiguated by theme ID. Inconsistent names or authors
+prevent grouping and are shown as a visible family warning.
+
+Variant selection persists using the selected variant's `theme.id`. The app
+also remembers the last selected variant for each family. Existing
+`selected_theme_id` settings continue to identify their individual theme.
 
 `[css].stylesheet` and `[javascript].source` default to empty strings. Optional
 tables `[canvas]`, `[layout]`, `[artwork]`, `[metadata]`, `[progress]`,

@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     error::Error,
     fs::{self, File, OpenOptions},
     io,
@@ -40,6 +41,7 @@ struct RunningApp {
     themes: ThemeManager,
     discovery: nowplaying::theme::ThemeDiscovery,
     active_theme: Option<String>,
+    family_selections: BTreeMap<String, String>,
     playback_provider: Option<PlaybackHandle>,
     playback_api: Arc<PlaybackApi>,
     artwork_cache: Arc<ArtworkCache>,
@@ -184,6 +186,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         themes: app.themes.clone(),
         catalog: app.discovery.clone(),
         active_theme: app.active_theme.clone(),
+        family_selections: app.family_selections.clone(),
         playback_state: app.playback_provider.as_ref().map(PlaybackHandle::state),
         players_state: app
             .playback_provider
@@ -264,6 +267,7 @@ async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
     }
     restore_startup_theme(&themes).await?;
     let active_theme = themes.active().await.map(|theme| theme.id().to_owned());
+    let family_selections = themes.selected_family_variants().await;
 
     let artwork = Arc::new(
         ArtworkCache::new(paths.cache.join("artwork"), ArtworkCacheConfig::default()).await?,
@@ -304,6 +308,7 @@ async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
         themes,
         discovery,
         active_theme,
+        family_selections,
         playback_provider,
         playback_api,
         artwork_cache: artwork,
