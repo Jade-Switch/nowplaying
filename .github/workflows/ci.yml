@@ -82,7 +82,7 @@ jobs:
         run: |
           flatpak-builder --user --force-clean --repo="$RUNNER_TEMP/flatpak-repo" \
             "$RUNNER_TEMP/flatpak-build" \
-            packaging/flatpak/io.github.Jade-Switch.nowplaying.yml
+            packaging/flatpak/io.github.JadeSwitch.nowplaying.yml
           flatpak build-bundle "$RUNNER_TEMP/flatpak-repo" \
             "$RUNNER_TEMP/nowplaying.flatpak" \
-            io.github.Jade-Switch.nowplaying stable
+            io.github.JadeSwitch.nowplaying stable

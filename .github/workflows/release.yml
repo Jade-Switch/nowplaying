@@ -63,10 +63,10 @@ jobs:
         run: |
           flatpak-builder --user --force-clean --repo="$RUNNER_TEMP/flatpak-repo" \
             "$RUNNER_TEMP/flatpak-build" \
-            packaging/flatpak/io.github.Jade-Switch.nowplaying.yml
+            packaging/flatpak/io.github.JadeSwitch.nowplaying.yml
           flatpak build-bundle "$RUNNER_TEMP/flatpak-repo" \
             "$RUNNER_TEMP/nowplaying-${RELEASE_TAG}.flatpak" \
-            io.github.Jade-Switch.nowplaying stable
+            io.github.JadeSwitch.nowplaying stable
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: flatpak-bundle
