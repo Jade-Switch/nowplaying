@@ -118,6 +118,21 @@ impl Default for CanvasConfig {
     }
 }
 
+impl CanvasConfig {
+    /// Returns an official built-in size profile for exact standard dimensions.
+    /// Custom dimensions remain valid and have no matching profile.
+    pub fn profile_name(&self) -> Option<&'static str> {
+        match (self.width, self.height) {
+            (420, 64) => Some("Slim"),
+            (420, 120) => Some("Compact"),
+            (800, 150) => Some("Standard"),
+            (960, 150) => Some("Wide"),
+            (1000, 180) => Some("Ultra-wide"),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LayoutDirection {
@@ -988,7 +1003,8 @@ template = "<main id='player'></main>"
             .parse(include_bytes!("../themes/catppuccin-mocha.toml"))
             .unwrap();
         assert_eq!(theme.id(), "catppuccin-mocha");
-        assert_eq!(theme.document.canvas.width, 640);
+        assert_eq!(theme.document.canvas.width, 800);
+        assert_eq!(theme.document.canvas.height, 150);
         assert!(
             theme
                 .document
@@ -1003,6 +1019,89 @@ template = "<main id='player'></main>"
                 .stylesheet
                 .contains("prefers-reduced-motion")
         );
+    }
+
+    #[test]
+    fn all_bundled_themes_parse_and_validate_for_the_current_runtime() {
+        for (expected_id, source, expected_dimensions, expected_profile) in [
+            (
+                "catppuccin-mocha",
+                include_bytes!("../themes/catppuccin-mocha.toml").as_slice(),
+                (800, 150),
+                "Standard",
+            ),
+            (
+                "quiet-mocha",
+                include_bytes!("../themes/quiet-mocha.toml").as_slice(),
+                (420, 64),
+                "Slim",
+            ),
+            (
+                "starfall",
+                include_bytes!("../themes/starfall.toml").as_slice(),
+                (1000, 180),
+                "Ultra-wide",
+            ),
+            (
+                "spectral-tide",
+                include_bytes!("../themes/spectral-tide.toml").as_slice(),
+                (1000, 180),
+                "Ultra-wide",
+            ),
+        ] {
+            let theme = loader().parse(source).unwrap_or_else(|error| {
+                panic!("bundled theme {expected_id} failed validation: {error}")
+            });
+            assert_eq!(theme.id(), expected_id);
+            assert_eq!(
+                (theme.document.canvas.width, theme.document.canvas.height),
+                expected_dimensions
+            );
+            assert!(
+                theme
+                    .document
+                    .css
+                    .stylesheet
+                    .contains(&format!("width: {}px;", expected_dimensions.0))
+            );
+            assert!(
+                theme
+                    .document
+                    .css
+                    .stylesheet
+                    .contains(&format!("height: {}px;", expected_dimensions.1))
+            );
+            assert_eq!(theme.document.canvas.profile_name(), Some(expected_profile));
+        }
+    }
+
+    #[test]
+    fn custom_canvas_sizes_remain_valid_and_unprofiled() {
+        let source = format!("[canvas]\nwidth = 1234\nheight = 567\n\n{VALID_THEME}");
+        let theme = loader().parse(source.as_bytes()).unwrap();
+        assert_eq!(theme.document.canvas.profile_name(), None);
+        assert_eq!(
+            (theme.document.canvas.width, theme.document.canvas.height),
+            (1234, 567)
+        );
+    }
+
+    #[test]
+    fn every_official_profile_is_recognized_from_canvas_dimensions() {
+        for ((width, height), expected_name) in [
+            ((420, 64), "Slim"),
+            ((420, 120), "Compact"),
+            ((800, 150), "Standard"),
+            ((960, 150), "Wide"),
+            ((1000, 180), "Ultra-wide"),
+        ] {
+            let canvas = CanvasConfig {
+                width,
+                height,
+                ..CanvasConfig::default()
+            };
+            assert_eq!(canvas.profile_name(), Some(expected_name));
+        }
     }
 
     #[test]

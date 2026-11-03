@@ -25,6 +25,12 @@ The service listens only on the local machine.
 
 If you change the HTTP port in the application settings, copy the updated URL from the Playback page.
 
+Theme cards show each theme's recommended Browser Source dimensions. Set the
+source to those dimensions and first check it at 100% scale. OBS transforms or
+output-resolution scaling can still soften a source; the recommendation does
+not guarantee perfect sharpness or change your source settings automatically.
+Custom dimensions remain supported.
+
 ## Installation
 
 ### Nix

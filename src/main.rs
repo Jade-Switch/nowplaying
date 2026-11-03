@@ -251,7 +251,7 @@ async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
 
     let themes_dir = paths.data.join("themes");
     tokio::fs::create_dir_all(&themes_dir).await?;
-    install_reference_theme(&themes_dir).await?;
+    install_bundled_themes(&themes_dir).await?;
 
     let settings_path = paths.config.join("settings.toml");
     if let Err(error) = gui::migrate_legacy_autostart(&settings_path).await {
@@ -313,8 +313,36 @@ async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
     })
 }
 
-async fn install_reference_theme(themes_dir: &std::path::Path) -> io::Result<()> {
-    let destination = themes_dir.join("catppuccin-mocha.toml");
+async fn install_bundled_themes(themes_dir: &std::path::Path) -> io::Result<()> {
+    for (filename, contents) in [
+        (
+            "catppuccin-mocha.toml",
+            include_bytes!("../themes/catppuccin-mocha.toml").as_slice(),
+        ),
+        (
+            "quiet-mocha.toml",
+            include_bytes!("../themes/quiet-mocha.toml").as_slice(),
+        ),
+        (
+            "starfall.toml",
+            include_bytes!("../themes/starfall.toml").as_slice(),
+        ),
+        (
+            "spectral-tide.toml",
+            include_bytes!("../themes/spectral-tide.toml").as_slice(),
+        ),
+    ] {
+        install_bundled_theme(themes_dir, filename, contents).await?;
+    }
+    Ok(())
+}
+
+async fn install_bundled_theme(
+    themes_dir: &std::path::Path,
+    filename: &str,
+    contents: &[u8],
+) -> io::Result<()> {
+    let destination = themes_dir.join(filename);
     let mut file = match tokio::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -325,10 +353,7 @@ async fn install_reference_theme(themes_dir: &std::path::Path) -> io::Result<()>
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => return Ok(()),
         Err(error) => return Err(error),
     };
-    if let Err(error) = file
-        .write_all(include_bytes!("../themes/catppuccin-mocha.toml"))
-        .await
-    {
+    if let Err(error) = file.write_all(contents).await {
         drop(file);
         let _ = tokio::fs::remove_file(destination).await;
         return Err(error);
@@ -339,6 +364,46 @@ async fn install_reference_theme(themes_dir: &std::path::Path) -> io::Result<()>
         return Err(error);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod bundled_theme_tests {
+    use std::{
+        fs,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    use super::install_bundled_themes;
+
+    static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+
+    #[tokio::test]
+    async fn installs_all_bundled_themes_without_replacing_existing_files() {
+        let directory = std::env::temp_dir().join(format!(
+            "nowplaying-bundled-themes-{}-{}",
+            std::process::id(),
+            NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let quiet_theme = directory.join("quiet-mocha.toml");
+        fs::write(&quiet_theme, "user-owned theme contents").unwrap();
+
+        install_bundled_themes(&directory).await.unwrap();
+
+        for filename in [
+            "catppuccin-mocha.toml",
+            "quiet-mocha.toml",
+            "starfall.toml",
+            "spectral-tide.toml",
+        ] {
+            assert!(directory.join(filename).is_file(), "missing {filename}");
+        }
+        assert_eq!(
+            fs::read_to_string(quiet_theme).unwrap(),
+            "user-owned theme contents"
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
 }
 
 async fn restore_startup_theme(themes: &ThemeManager) -> Result<(), Box<dyn Error>> {

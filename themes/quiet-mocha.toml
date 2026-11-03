@@ -1,0 +1,289 @@
+[theme]
+id = "quiet-mocha"
+name = "Quiet Mocha"
+version = "1.0.0"
+format_version = 1
+author = "Now Playing Studio"
+description = "A minimal, unobtrusive playback overlay using the Catppuccin Mocha palette."
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 420
+height = 64
+background = "transparent"
+
+[layout]
+direction = "horizontal"
+alignment = "center"
+spacing = 12
+padding = 8
+
+[artwork]
+enabled = false
+position = "left"
+width = 0
+height = 0
+fit = "contain"
+rendering = "auto"
+
+[metadata]
+show_title = true
+show_artist = true
+show_album = false
+alignment = "start"
+
+[progress]
+enabled = true
+position = "bottom"
+height = 2
+
+[animations]
+enabled = true
+reduced_motion_support = true
+track_change = "crossfade"
+track_change_duration_ms = 180
+
+[colors]
+background = "transparent"
+text = "#cdd6f4"
+muted = "#a6adc8"
+accent = "#cba6f7"
+
+[html]
+template = """
+<main class="player" data-status="unknown" aria-live="polite">
+  <div class="accent" aria-hidden="true"></div>
+
+  <section class="details">
+    <h1 class="title" id="title">Nothing playing</h1>
+    <div class="artist-row">
+      <span class="status-dot" aria-hidden="true"></span>
+      <p class="artist" id="artist">Waiting for playback</p>
+    </div>
+  </section>
+
+  <progress class="progress" id="progress"
+    aria-label="Track progress" max="100" value="0"></progress>
+</main>
+"""
+
+[css]
+stylesheet = """
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  --base: #1e1e2e;
+  --surface: #313244;
+  --overlay: #45475a;
+  --muted: #a6adc8;
+  --text: #cdd6f4;
+  --accent: #cba6f7;
+  --green: #a6e3a1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: transparent;
+  color: var(--text);
+}
+
+.player {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 420px;
+  height: 64px;
+  padding: 8px;
+  background: transparent;
+}
+
+.accent {
+  flex: 0 0 3px;
+  height: 34px;
+  border-radius: 99px;
+  background: var(--accent);
+  opacity: .8;
+  transition: opacity 180ms ease, background 180ms ease;
+}
+
+.player[data-status="playing"] .accent {
+  opacity: 1;
+}
+
+.player[data-status="paused"] .accent {
+  opacity: .45;
+}
+
+.player[data-status="stopped"] .accent,
+.player[data-status="unknown"] .accent {
+  opacity: .25;
+}
+
+.details {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  transition: opacity 180ms ease;
+}
+
+.title {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artist-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+}
+
+.status-dot {
+  flex: 0 0 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: .65;
+  transition: background 180ms ease, opacity 180ms ease;
+}
+
+.player[data-status="playing"] .status-dot {
+  background: var(--green);
+  opacity: .9;
+}
+
+.player[data-status="paused"] .status-dot {
+  background: var(--accent);
+  opacity: .7;
+}
+
+.artist {
+  overflow: hidden;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress {
+  position: absolute;
+  right: 8px;
+  bottom: 5px;
+  left: 8px;
+  display: block;
+  width: calc(100% - 16px);
+  height: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 99px;
+  appearance: none;
+  background: transparent;
+}
+
+.progress::-webkit-progress-bar {
+  border-radius: 99px;
+  background: rgb(108 112 134 / 24%);
+}
+
+.progress::-webkit-progress-value {
+  border-radius: 99px;
+  background: rgb(203 166 247 / 75%);
+  transition: width 400ms linear;
+}
+
+.progress::-moz-progress-bar {
+  border-radius: 99px;
+  background: rgb(203 166 247 / 75%);
+  transition: width 400ms linear;
+}
+
+.player.is-changing .details {
+  opacity: .45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+"""
+
+[javascript]
+source = """
+(() => {
+  const root = document.querySelector('.player');
+  const title = document.getElementById('title');
+  const artist = document.getElementById('artist');
+  const progress = document.getElementById('progress');
+
+  let currentTrack = null;
+  let changeTimer = 0;
+
+  function update(snapshot) {
+    const metadata = snapshot.metadata || {};
+    const nextTrack = metadata.trackId ||
+      [metadata.title, metadata.artists?.join(', ')].join('|');
+
+    if (currentTrack !== null && nextTrack !== currentTrack) {
+      root.classList.add('is-changing');
+      clearTimeout(changeTimer);
+      changeTimer = setTimeout(() => {
+        root.classList.remove('is-changing');
+      }, 180);
+    }
+
+    currentTrack = nextTrack;
+
+    title.textContent = metadata.title ||
+      (snapshot.connected ? 'Unknown track' : 'Nothing playing');
+
+    artist.textContent =
+      metadata.artists?.filter(Boolean).join(' · ') ||
+      (snapshot.connected ? 'Unknown artist' : 'Waiting for playback');
+
+    root.dataset.status = snapshot.status || 'unknown';
+
+    const duration = Number(snapshot.durationMs) || 0;
+    const position = Number(snapshot.positionMs) || 0;
+
+    progress.value = duration > 0
+      ? Math.max(0, Math.min(100, position / duration * 100))
+      : 0;
+  }
+
+  window.NowPlaying.subscribe(update);
+})();
+"""

@@ -4,14 +4,14 @@ name = "Catppuccin Mocha"
 version = "1.0.0"
 format_version = 1
 author = "nowplaying"
-description = "A compact album-art and metadata display using the Catppuccin Mocha palette."
+description = "A standard album-art and metadata display using the Catppuccin Mocha palette."
 
 [theme.compatibility]
 minimum_runtime = "0.1.0"
 
 [canvas]
-width = 640
-height = 180
+width = 800
+height = 150
 background = "transparent"
 
 [layout]
@@ -23,8 +23,8 @@ padding = 10
 [artwork]
 enabled = true
 position = "left"
-width = 144
-height = 144
+width = 120
+height = 120
 fit = "contain"
 rendering = "auto"
 
@@ -94,17 +94,17 @@ body { background: transparent; color: var(--text); }
 .player {
   display: flex;
   align-items: center;
-  gap: 20px;
-  width: 640px;
-  height: 180px;
+  gap: 18px;
+  width: 800px;
+  height: 150px;
   padding: 10px;
   background: transparent;
 }
 .art-frame {
   position: relative;
-  flex: 0 0 144px;
-  width: 144px;
-  height: 144px;
+  flex: 0 0 120px;
+  width: 120px;
+  height: 120px;
   overflow: hidden;
   border: 1px solid rgb(205 214 244 / 12%);
   border-radius: 18px;

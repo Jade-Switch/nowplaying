@@ -1104,6 +1104,14 @@ impl App {
                         text(format!("Version {}", theme.document.theme.version))
                             .size(design::typography::CAPTION)
                             .color(design::TEXT_SECONDARY),
+                        text(format!(
+                            "{} · {} × {} px",
+                            theme.document.canvas.profile_name().unwrap_or("Custom"),
+                            theme.document.canvas.width,
+                            theme.document.canvas.height,
+                        ))
+                        .size(design::typography::CAPTION)
+                        .color(design::TEXT_SECONDARY),
                     ]
                     .spacing(design::spacing::XS),
                     space::horizontal().width(Length::Fill),

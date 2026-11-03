@@ -1,0 +1,208 @@
+[theme]
+id = "spectral-tide"
+name = "Spectral Tide"
+version = "1.0.0"
+format_version = 1
+author = "nowplaying"
+description = "An ultra-wide, visualizer-led playback strip with a decorative spectrum display."
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 1000
+height = 180
+background = "transparent"
+
+[layout]
+direction = "horizontal"
+alignment = "center"
+spacing = 28
+padding = 28
+
+[artwork]
+enabled = false
+position = "hidden"
+width = 0
+height = 0
+fit = "contain"
+rendering = "auto"
+
+[metadata]
+show_title = true
+show_artist = true
+show_album = false
+alignment = "start"
+
+[progress]
+enabled = true
+position = "bottom"
+height = 2
+
+[animations]
+enabled = true
+reduced_motion_support = true
+track_change = "crossfade"
+track_change_duration_ms = 240
+
+[colors]
+background = "transparent"
+text = "#e7f7f5"
+muted = "#8ca9ad"
+accent = "#6ee7d8"
+
+[html]
+template = '''
+<main class="tide" data-status="unknown" aria-live="polite">
+  <section class="track">
+    <div class="eyebrow"><span class="status-dot"></span><span id="status">WAITING FOR MUSIC</span></div>
+    <h1 id="title">Nothing playing</h1>
+    <p id="artist">Choose a media player</p>
+    <span class="player" id="player">NOWPLAYING</span>
+  </section>
+
+  <section class="visualizer" aria-label="Decorative animated spectrum">
+    <div class="visualizer-heading"><span>SPECTRUM</span><span id="connection">OFFLINE</span></div>
+    <div class="bars" aria-hidden="true">
+      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <div class="spectrum-rule"></div>
+  </section>
+
+  <div class="progress-track" aria-label="Track progress">
+    <div id="progress"></div>
+  </div>
+</main>
+'''
+
+[css]
+stylesheet = '''
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+  --text: #e7f7f5;
+  --muted: #8ca9ad;
+  --teal: #6ee7d8;
+  --blue: #7aa9ff;
+}
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: transparent; color: var(--text); }
+.tide {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  width: 1000px;
+  height: 180px;
+  padding: 24px 32px 30px;
+  overflow: hidden;
+  background: linear-gradient(110deg, #101c25 0%, #142830 58%, #1b2639 100%);
+  border: 1px solid rgb(177 229 224 / 18%);
+  border-radius: 12px;
+}
+.tide::before {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 80% 45%, rgb(110 231 216 / 12%), transparent 48%);
+  content: "";
+  pointer-events: none;
+}
+.track { position: relative; z-index: 1; flex: 0 0 390px; min-width: 0; }
+.eyebrow, .visualizer-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.eyebrow { justify-content: flex-start; gap: 9px; margin-bottom: 12px; }
+.status-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #587279; }
+.tide[data-status="playing"] .status-dot { background: var(--teal); }
+h1 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text);
+  font-size: 28px;
+  font-weight: 650;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#artist { overflow: hidden; margin: 8px 0 0; color: #b5cccf; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.player { display: block; margin-top: 15px; color: #718b91; font-size: 9px; font-weight: 700; letter-spacing: 2px; }
+.visualizer { position: relative; z-index: 1; flex: 1; min-width: 0; padding: 4px 0 12px; }
+.visualizer-heading { margin-bottom: 18px; font-size: 9px; letter-spacing: 1.8px; }
+.bars { display: flex; align-items: center; justify-content: space-between; height: 78px; gap: 8px; }
+.bars i {
+  display: block;
+  flex: 1 1 0;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--teal), var(--blue));
+  opacity: .5;
+}
+.bars i:nth-child(1) { height: 18px; }
+.bars i:nth-child(2) { height: 31px; }
+.bars i:nth-child(3) { height: 45px; }
+.bars i:nth-child(4) { height: 27px; }
+.bars i:nth-child(5) { height: 58px; }
+.bars i:nth-child(6) { height: 38px; }
+.bars i:nth-child(7) { height: 70px; }
+.bars i:nth-child(8) { height: 48px; }
+.bars i:nth-child(9) { height: 32px; }
+.bars i:nth-child(10) { height: 63px; }
+.bars i:nth-child(11) { height: 42px; }
+.bars i:nth-child(12) { height: 76px; }
+.bars i:nth-child(13) { height: 51px; }
+.bars i:nth-child(14) { height: 34px; }
+.bars i:nth-child(15) { height: 65px; }
+.bars i:nth-child(16) { height: 43px; }
+.bars i:nth-child(17) { height: 27px; }
+.bars i:nth-child(18) { height: 56px; }
+.bars i:nth-child(19) { height: 37px; }
+.bars i:nth-child(20) { height: 21px; }
+.bars i:nth-child(21) { height: 47px; }
+.bars i:nth-child(22) { height: 30px; }
+.bars i:nth-child(23) { height: 18px; }
+.bars i:nth-child(24) { height: 38px; }
+.tide[data-status="playing"] .bars i { opacity: .88; animation: glow 1.8s ease-in-out infinite alternate; }
+.bars i:nth-child(3n) { animation-delay: 250ms; }
+.bars i:nth-child(4n) { animation-delay: 500ms; }
+.spectrum-rule { height: 1px; margin-top: 8px; background: linear-gradient(90deg, var(--teal), rgb(122 169 255 / 5%)); opacity: .55; }
+.progress-track { position: absolute; z-index: 2; right: 32px; bottom: 16px; left: 32px; height: 2px; overflow: hidden; background: rgb(140 169 173 / 25%); }
+#progress { width: 0; height: 100%; background: linear-gradient(90deg, var(--teal), var(--blue)); }
+@keyframes glow { from { opacity: .55; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+'''
+
+[javascript]
+source = '''
+(() => {
+  const root = document.querySelector(".tide");
+  const status = document.getElementById("status");
+  const connection = document.getElementById("connection");
+  const title = document.getElementById("title");
+  const artist = document.getElementById("artist");
+  const player = document.getElementById("player");
+  const progress = document.getElementById("progress");
+
+  window.NowPlaying.subscribe((snapshot) => {
+    const metadata = snapshot.metadata || {};
+    const playbackStatus = snapshot.status || "unknown";
+    root.dataset.status = playbackStatus;
+    status.textContent = playbackStatus === "playing" ? "NOW PLAYING" : playbackStatus.toUpperCase();
+    connection.textContent = snapshot.connected ? "CONNECTED" : "OFFLINE";
+    title.textContent = metadata.title || (snapshot.connected ? "Nothing playing" : "Waiting for music");
+    artist.textContent = (metadata.artists || []).filter(Boolean).join(" · ") || "Unknown artist";
+    player.textContent = snapshot.player?.identity || "NOWPLAYING";
+    const duration = Math.max(0, Number(snapshot.durationMs) || 0);
+    const position = Math.max(0, Number(snapshot.positionMs) || 0);
+    progress.style.width = (duration ? Math.min(100, position / duration * 100) : 0) + "%";
+  });
+})();
+'''

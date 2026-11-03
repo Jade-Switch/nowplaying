@@ -116,6 +116,59 @@ shipped themes implement their presentation in HTML and CSS and use JavaScript
 to update it. Start with the minimal example above; add these tables only when
 they are useful to document your theme's choices.
 
+`[canvas].width` and `[canvas].height` describe the theme's recommended native
+browser-source size in CSS pixels. They are informational: the app does not
+resize OBS sources, force these dimensions, or reject themes that use other
+sizes. Existing themes without a `[canvas]` table keep the format defaults of
+640 × 180 px. The theme selector labels exact matches to the official profiles
+below; other dimensions are shown as `Custom` with their actual size. No
+profile field is required in a theme file.
+
+## Official built-in size profiles
+
+These are Nowplaying's design standards for themes shipped with the app. They
+are recommendations for browser-source dimensions, not universal standards or
+limits on imported themes.
+
+| Profile | Recommended size | Intended use |
+| --- | ---: | --- |
+| Slim | 420 × 64 px | Minimal typography, title and artist, a small status indicator, and an optional 1–2 px progress line. |
+| Compact | 420 × 120 px | Essential metadata with optional 88–96 px artwork and a restrained progress indicator. |
+| Standard | 800 × 150 px | General-purpose layout with artwork, title, artist, and progress. |
+| Wide | 960 × 150 px | Horizontal compositions that use the extra width for larger artwork or additional metadata. |
+| Ultra-wide | 1000 × 180 px | Cinematic, decorative, waveform, or visualizer-led layouts, including portrait OBS scenes. |
+
+Slim layouts should be deliberately minimal, not ordinary layouts with smaller
+type. Keep title and artist primary, truncate long text, and avoid large cards,
+borders, and unused metadata. Compact themes should keep artwork around 88–96
+px and limit secondary details. Standard, Wide, and Ultra-wide themes should
+use their width intentionally instead of stretching a smaller design. The
+built-in Starfall and Spectral Tide themes are distinct Ultra-wide examples:
+Starfall uses cinematic artwork and scenery; Spectral Tide uses a typography
+and decorative-spectrum composition. Its spectrum is decorative and does not
+claim to visualize audio samples.
+
+### OBS setup and sharpness
+
+For a built-in theme, set the OBS Browser Source width and height to the
+recommendation shown on its theme card. First compare it at 100% source scale
+with the browser page opened by the theme's Preview action. Then check it at
+the intended stream output resolution. A source rendered at its native
+dimensions can still look soft if OBS scales it to a different size; matching
+dimensions helps avoid extra resampling but cannot guarantee perfect sharpness.
+
+If a theme still looks soft at native size, check OBS transforms and output
+resolution, browser rendering/device-pixel ratio, fractional CSS positioning or
+transforms, and artwork resolution before changing the theme. Prefer whole CSS
+pixel sizes and positions for static details, inline SVG for vector decoration,
+and artwork that is not needlessly enlarged. Keep animations contained and
+avoid moving fine text by fractional pixels.
+
+Users can choose any OBS source dimensions. Theme recommendations never change
+those settings automatically. Third-party themes may use any valid canvas size;
+they are not required to match an official profile and theme loading does not
+enforce the profile dimensions.
+
 Artwork is only resolved and exposed as `metadata.artworkUrl` when
 `[artwork].enabled` is `true` and both `width` and `height` are positive.
 Missing dimensions default to `0`, and a dimension set to `0` disables artwork
