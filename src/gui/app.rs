@@ -275,16 +275,7 @@ impl App {
                 }
                 Task::none()
             }
-            Message::ImportTheme => Task::perform(
-                async {
-                    rfd::AsyncFileDialog::new()
-                        .add_filter("Now Playing theme", &["toml"])
-                        .pick_file()
-                        .await
-                        .map(|file| file.path().to_owned())
-                },
-                Message::ImportFileChosen,
-            ),
+            Message::ImportTheme => Task::perform(pick_theme_file(), Message::ImportFileChosen),
             Message::ImportFileChosen(Some(path)) => {
                 let themes = self.themes.clone();
                 Task::perform(
@@ -316,7 +307,7 @@ impl App {
             }
             Message::ImportFileChosen(None) => {
                 self.status_message = Some(
-                    "No theme was selected. If the picker did not open, check the desktop file portal."
+                    "No theme was selected. If the picker did not open, check kdialog or the desktop file portal."
                         .to_owned(),
                 );
                 Task::none()
@@ -1093,6 +1084,37 @@ fn open_system_path(path: PathBuf) -> Task<Message> {
         },
         Message::SystemPathOpened,
     )
+}
+
+async fn pick_theme_file() -> Option<PathBuf> {
+    match tokio::task::spawn_blocking(pick_with_kdialog).await {
+        Ok(Some(selection)) => return selection,
+        Ok(None) | Err(_) => {}
+    }
+
+    rfd::AsyncFileDialog::new()
+        .add_filter("Now Playing theme", &["toml"])
+        .pick_file()
+        .await
+        .map(|file| file.path().to_owned())
+}
+
+fn pick_with_kdialog() -> Option<Option<PathBuf>> {
+    let start_directory = std::env::var_os("HOME").unwrap_or_else(|| ".".into());
+    let output = Command::new("kdialog")
+        .arg("--getopenfilename")
+        .arg(start_directory)
+        .arg("Now Playing theme (*.toml)")
+        .arg("Import theme")
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        return Some((!path.is_empty()).then(|| PathBuf::from(path)));
+    }
+
+    (output.status.code() == Some(1)).then_some(None)
 }
 
 async fn save_server_port(path: PathBuf, port: u16) -> Result<(), String> {

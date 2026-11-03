@@ -44,7 +44,7 @@
               install -Dm644 ${./assets/now-playing-studio.svg} \
                 $out/share/icons/hicolor/scalable/apps/now-playing-studio.svg
               wrapProgram $out/bin/now-playing-studio \
-                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xdg-utils ]} \
+                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xdg-utils pkgs.kdePackages.kdialog ]} \
                 --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath runtimeLibraries}
             '';
 

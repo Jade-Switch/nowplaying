@@ -98,20 +98,12 @@ your profile:
 nix run github:Jade-Switch/nowplaying
 ```
 
-On NixOS with KDE Plasma, enable the desktop portal backend for the Import
-Theme file picker:
-
-```nix
-xdg.portal = {
-  enable = true;
-  extraPortals = [ pkgs.kdePackages.xdg-desktop-portal-kde ];
-};
-```
-
-Rebuild and log in to the graphical session again after enabling it. The app
-expects a logged-in desktop session with session D-Bus. KDE also supplies the
-StatusNotifier watcher used for the tray icon. MPRIS players must be running in
-the same session. Without a tray watcher, closing the app window exits it.
+The Nix package includes `kdialog` as a native fallback for importing themes,
+so KDE's portal backend does not need to be enabled just for the file picker.
+Flatpak and Snap use the desktop file-picker portal. The app expects a logged-in
+desktop session with session D-Bus. KDE also supplies the StatusNotifier watcher
+used for the tray icon. MPRIS players must be running in the same session.
+Without a tray watcher, closing the app window exits it.
 
 To include the app in a NixOS flake configuration, add it as an input:
 
@@ -147,7 +139,6 @@ The intention is to keep these responsibilities separated without introducing un
 ## Documentation
 
 - [Themes and the browser playback API](docs/theme-format.md)
-- [Packaging and automated releases](docs/packaging.md)
 
 ## License
 
