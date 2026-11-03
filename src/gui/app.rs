@@ -1289,9 +1289,8 @@ fn open_system_path(path: PathBuf) -> Task<Message> {
 }
 
 async fn pick_theme_file() -> Option<PathBuf> {
-    match tokio::task::spawn_blocking(pick_with_kdialog).await {
-        Ok(Some(selection)) => return selection,
-        Ok(None) | Err(_) => {}
+    if let Ok(Some(selection)) = tokio::task::spawn_blocking(pick_with_kdialog).await {
+        return selection;
     }
 
     rfd::AsyncFileDialog::new()

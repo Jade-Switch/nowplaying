@@ -761,10 +761,10 @@ impl ThemeManager {
         if bytes.len() > MAX_THEME_FILE_BYTES {
             return Err(ThemeError::TooLarge);
         }
-        let mut theme = self.loader.parse(&bytes)?;
+        let mut theme = self.loader.parse(bytes)?;
         let id = theme.id().to_owned();
         let destination = self.themes_dir.join(format!("{id}.toml"));
-        atomic_create_new(&destination, &bytes, &id).await?;
+        atomic_create_new(&destination, bytes, &id).await?;
         theme.source_path = Some(destination);
         let theme = Arc::new(theme);
         self.catalog.write().await.themes.insert(id, theme.clone());
