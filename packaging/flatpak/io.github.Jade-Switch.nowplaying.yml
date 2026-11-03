@@ -4,10 +4,10 @@ runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
-command: now-playing-studio
+command: nowplaying
 
 finish-args:
-  - --env=NOW_PLAYING_STUDIO_APP_ID=io.github.Jade-Switch.nowplaying
+  - --env=NOWPLAYING_APP_ID=io.github.Jade-Switch.nowplaying
   - --share=network
   - --socket=wayland
   - --talk-name=org.freedesktop.DBus
@@ -17,18 +17,18 @@ finish-args:
   - --own-name=org.kde.StatusNotifierItem-*
 
 modules:
-  - name: now-playing-studio
+  - name: nowplaying
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/rust-stable/bin
       env:
-        CARGO_HOME: /run/build/now-playing-studio/cargo
+        CARGO_HOME: /run/build/nowplaying/cargo
         CARGO_NET_OFFLINE: 'true'
     build-commands:
       - cargo build --offline --locked --release
-      - install -Dm0755 target/release/now-playing-studio /app/bin/now-playing-studio
+      - install -Dm0755 target/release/nowplaying /app/bin/nowplaying
       - install -Dm0644 packaging/flatpak/io.github.Jade-Switch.nowplaying.desktop /app/share/applications/io.github.Jade-Switch.nowplaying.desktop
-      - install -Dm0644 assets/now-playing-studio.svg /app/share/icons/hicolor/scalable/apps/io.github.Jade-Switch.nowplaying.svg
+      - install -Dm0644 assets/nowplaying.svg /app/share/icons/hicolor/scalable/apps/io.github.Jade-Switch.nowplaying.svg
     sources:
       - type: dir
         path: ../..

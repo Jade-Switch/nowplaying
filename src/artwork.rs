@@ -345,7 +345,7 @@ impl ArtworkCache {
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(5))
             .timeout(HTTP_TIMEOUT)
-            .user_agent("NowPlayingStudio/0.1 artwork")
+            .user_agent("nowplaying/0.1 artwork")
             .resolve_to_addrs(host, &addresses)
             .build()
             .map_err(ArtworkError::Download)?;

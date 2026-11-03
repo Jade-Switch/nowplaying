@@ -13,12 +13,13 @@ use crate::{
     artwork::ArtworkCache,
     mpris::{PlayerSelection, PlayerSelector},
     playback::{PlaybackSnapshot, PlaybackStatus, PlayerInfo},
-    theme::{LoadedTheme, ThemeDiscovery, ThemeManager},
+    theme::{LoadedTheme, MAX_THEME_FILE_BYTES, ThemeDiscovery, ThemeManager},
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme, time,
     widget::{
-        button, checkbox, column, container, pick_list, row, scrollable, space, text, text_input,
+        Stack, button, checkbox, column, container, pick_list, row, rule, scrollable, space, text,
+        text_editor, text_input,
     },
     window,
 };
@@ -100,9 +101,17 @@ enum Message {
     RefreshThemes,
     ThemesRefreshed(Result<ThemeDiscovery, String>),
     ImportTheme,
+    ChooseImportFile,
     ImportFileChosen(Option<PathBuf>),
-    ThemeImported(Result<ImportedTheme, String>),
+    ImportFileLoaded(Result<(String, String), String>),
+    ImportFileHovered(window::Id, Option<PathBuf>),
+    ImportFileDropped(window::Id, PathBuf),
+    ImportTextEdited(text_editor::Action),
+    SubmitThemeImport,
+    ThemeImported(Result<(String, ThemeDiscovery), String>),
+    CancelThemeImport,
     OpenTheme(String),
+    OpenThemeFile(PathBuf),
     PreviewTheme(String),
     ThemePreviewed(Result<String, String>),
     RequestDeleteTheme(String),
@@ -122,15 +131,6 @@ enum Message {
     SelectPlayer(PlayerChoice),
     ArtworkLoaded(ArtworkKey, Option<Vec<u8>>),
     Tick,
-}
-
-#[derive(Debug, Clone)]
-struct ImportedTheme {
-    id: String,
-    catalog: ThemeDiscovery,
-    source: PathBuf,
-    destination: PathBuf,
-    source_removal_error: Option<String>,
 }
 
 type ArtworkKey = (Option<String>, Option<String>);
@@ -162,6 +162,11 @@ struct App {
     show_requested: Arc<AtomicBool>,
     status_message: Option<String>,
     confirming_delete: Option<String>,
+    import_open: bool,
+    import_content: text_editor::Content,
+    import_filename: Option<String>,
+    import_error: Option<String>,
+    import_drag_hover: bool,
     shutdown_requested: Arc<AtomicBool>,
     window_id: Option<window::Id>,
 }
@@ -224,6 +229,11 @@ impl App {
             show_requested,
             status_message: None,
             confirming_delete: None,
+            import_open: false,
+            import_content: text_editor::Content::new(),
+            import_filename: None,
+            import_error: None,
+            import_drag_hover: false,
             shutdown_requested,
             window_id: None,
         }
@@ -275,63 +285,101 @@ impl App {
                 }
                 Task::none()
             }
-            Message::ImportTheme => Task::perform(pick_theme_file(), Message::ImportFileChosen),
+            Message::ImportTheme => {
+                self.import_open = true;
+                self.import_content = text_editor::Content::new();
+                self.import_filename = None;
+                self.import_error = None;
+                self.import_drag_hover = false;
+                Task::none()
+            }
+            Message::ChooseImportFile => {
+                Task::perform(pick_theme_file(), Message::ImportFileChosen)
+            }
             Message::ImportFileChosen(Some(path)) => {
+                Task::perform(read_import_file(path), Message::ImportFileLoaded)
+            }
+            Message::ImportFileChosen(None) => Task::none(),
+            Message::ImportFileHovered(id, path) => {
+                if Some(id) == self.window_id {
+                    self.import_drag_hover = path.is_some_and(|path| is_theme_path(&path));
+                }
+                Task::none()
+            }
+            Message::ImportFileDropped(id, path) => {
+                if Some(id) == self.window_id && is_theme_path(&path) {
+                    self.import_drag_hover = false;
+                    return Task::perform(read_import_file(path), Message::ImportFileLoaded);
+                }
+                Task::none()
+            }
+            Message::ImportFileLoaded(Ok((filename, contents))) => {
+                self.import_content = text_editor::Content::with_text(&contents);
+                self.import_filename = Some(filename);
+                self.import_error = None;
+                Task::none()
+            }
+            Message::ImportFileLoaded(Err(error)) => {
+                self.import_error = Some(error);
+                Task::none()
+            }
+            Message::ImportTextEdited(action) => {
+                self.import_content.perform(action);
+                if self.import_content.text().len() > MAX_THEME_FILE_BYTES {
+                    self.import_error = Some(format!(
+                        "Theme text exceeds the {} MiB size limit.",
+                        MAX_THEME_FILE_BYTES / (1024 * 1024)
+                    ));
+                } else {
+                    self.import_error = None;
+                }
+                Task::none()
+            }
+            Message::SubmitThemeImport => {
+                let content = self.import_content.text();
+                if content.trim().is_empty() {
+                    self.import_error = Some("Paste or select a theme file first.".to_owned());
+                    return Task::none();
+                }
+                if content.len() > MAX_THEME_FILE_BYTES {
+                    self.import_error = Some(format!(
+                        "Theme text exceeds the {} MiB size limit.",
+                        MAX_THEME_FILE_BYTES / (1024 * 1024)
+                    ));
+                    return Task::none();
+                }
                 let themes = self.themes.clone();
                 Task::perform(
                     async move {
                         let theme = themes
-                            .import_file(&path)
+                            .import_content(&content)
                             .await
                             .map_err(|error| error.to_string())?;
                         let id = theme.id().to_owned();
-                        let destination = theme
-                            .source_path
-                            .clone()
-                            .ok_or_else(|| "Imported theme has no storage path".to_owned())?;
-                        let source_removal_error = tokio::fs::remove_file(&path)
-                            .await
-                            .err()
-                            .map(|error| error.to_string());
-                        let catalog = themes.catalog().await;
-                        Ok(ImportedTheme {
-                            id,
-                            catalog,
-                            source: path,
-                            destination,
-                            source_removal_error,
-                        })
+                        Ok((id, themes.catalog().await))
                     },
                     Message::ThemeImported,
                 )
             }
-            Message::ImportFileChosen(None) => {
-                self.status_message = Some(
-                    "No theme was selected. If the picker did not open, check kdialog or the desktop file portal."
-                        .to_owned(),
-                );
+            Message::CancelThemeImport => {
+                self.import_open = false;
+                self.import_error = None;
                 Task::none()
             }
             Message::ThemeImported(result) => {
                 match result {
-                    Ok(imported) => {
-                        let name = imported
-                            .catalog
+                    Ok((id, catalog)) => {
+                        let name = catalog
                             .themes
-                            .get(&imported.id)
+                            .get(&id)
                             .map(|theme| theme.document.theme.name.clone())
-                            .unwrap_or_else(|| imported.id.clone());
-                        self.catalog = imported.catalog;
-                        self.status_message = Some(match imported.source_removal_error {
-                            Some(error) => format!(
-                                "Imported {name} to {} but couldn't remove the original at {}: {error}",
-                                imported.destination.display(),
-                                imported.source.display()
-                            ),
-                            None => format!("Moved {name} to {}.", imported.destination.display()),
-                        });
+                            .unwrap_or(id);
+                        self.catalog = catalog;
+                        self.import_open = false;
+                        self.import_error = None;
+                        self.status_message = Some(format!("Imported {name}."));
                     }
-                    Err(error) => self.status_message = Some(error),
+                    Err(error) => self.import_error = Some(error),
                 }
                 Task::none()
             }
@@ -347,6 +395,7 @@ impl App {
                 };
                 open_system_path(path)
             }
+            Message::OpenThemeFile(path) => open_system_path(path),
             Message::PreviewTheme(id) => {
                 let mut url = match url::Url::parse(&self.service_url) {
                     Ok(url) => url,
@@ -454,7 +503,7 @@ impl App {
                 match result {
                     Ok(port) => {
                         self.status_message =
-                            Some(format!("Restarting Now Playing Studio on port {port}."));
+                            Some(format!("Restarting nowplaying on port {port}."));
                         self.restart_requested.store(true, Ordering::Relaxed);
                         self.shutdown_requested.store(true, Ordering::Relaxed);
                     }
@@ -474,9 +523,9 @@ impl App {
                     Ok(enabled) => {
                         self.start_on_startup = enabled;
                         self.status_message = Some(if enabled {
-                            "Now Playing Studio will start when you sign in.".to_owned()
+                            "nowplaying will start when you sign in.".to_owned()
                         } else {
-                            "Now Playing Studio will no longer start when you sign in.".to_owned()
+                            "nowplaying will no longer start when you sign in.".to_owned()
                         });
                     }
                     Err(error) => self.status_message = Some(error),
@@ -551,10 +600,25 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch([
+        let mut subscriptions = vec![
             time::every(Duration::from_millis(500)).map(|_| Message::Tick),
             window::close_requests().map(Message::CloseRequested),
-        ])
+        ];
+        if self.import_open {
+            subscriptions.push(iced::event::listen_with(|event, _status, id| match event {
+                iced::Event::Window(window::Event::FileHovered(path)) => {
+                    Some(Message::ImportFileHovered(id, Some(path)))
+                }
+                iced::Event::Window(window::Event::FileDropped(path)) => {
+                    Some(Message::ImportFileDropped(id, path))
+                }
+                iced::Event::Window(window::Event::FilesHoveredLeft) => {
+                    Some(Message::ImportFileHovered(id, None))
+                }
+                _ => None,
+            }));
+        }
+        Subscription::batch(subscriptions)
     }
 
     fn player_choices(&self) -> Vec<PlayerChoice> {
@@ -579,7 +643,7 @@ impl App {
             Section::Playback => self.playback_page(),
             Section::Settings => self.settings_page(),
         };
-        container(
+        let base: Element<'_, Message> = container(
             row![sidebar, page]
                 .spacing(design::spacing::LG)
                 .height(Length::Fill),
@@ -588,7 +652,136 @@ impl App {
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|_| design::window_surface())
-        .into()
+        .into();
+        if self.import_open {
+            Stack::with_children([base, self.import_dialog()])
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        } else {
+            base
+        }
+    }
+
+    fn import_dialog(&self) -> Element<'_, Message> {
+        let filename = self
+            .import_filename
+            .as_deref()
+            .unwrap_or("Drop a .toml theme file here");
+        let drop_zone = container(
+            row![
+                column![
+                    text(filename)
+                        .size(design::typography::BODY_LARGE)
+                        .color(design::TEXT_PRIMARY),
+                    text("or choose a file to load and edit below")
+                        .size(design::typography::CAPTION)
+                        .color(design::TEXT_SECONDARY),
+                ]
+                .spacing(design::spacing::XS),
+                space::horizontal().width(Length::Fill),
+                button(text("Choose file").size(design::typography::BODY))
+                    .padding([design::spacing::SM, design::spacing::MD])
+                    .style(design::secondary_button)
+                    .on_press(Message::ChooseImportFile),
+            ]
+            .align_y(Alignment::Center),
+        )
+        .padding(design::spacing::MD)
+        .width(Length::Fill)
+        .style(move |_| {
+            let mut style = design::elevated_surface();
+            if self.import_drag_hover {
+                style.border = iced::border::rounded(design::radius::CONTROL)
+                    .color(design::LAVENDER)
+                    .width(2.0);
+            }
+            style
+        });
+
+        let mut content = column![
+            text("Import Theme")
+                .size(design::typography::HEADING)
+                .color(design::TEXT_PRIMARY),
+            text("Choose a TOML file or paste theme content below.")
+                .size(design::typography::BODY)
+                .color(design::TEXT_SECONDARY),
+            drop_zone,
+            row![
+                space::horizontal().width(Length::Fill),
+                text("OR PASTE TOML")
+                    .size(design::typography::CAPTION)
+                    .color(design::TEXT_SECONDARY),
+                space::horizontal().width(Length::Fill)
+            ]
+            .spacing(design::spacing::SM),
+            container(
+                text_editor(&self.import_content)
+                    .on_action(Message::ImportTextEdited)
+                    .font(iced::Font::MONOSPACE)
+                    .size(12)
+                    .height(Length::Fixed(190.0))
+            )
+            .padding(design::spacing::SM)
+            .width(Length::Fill)
+            .style(|_| design::elevated_surface()),
+        ]
+        .spacing(design::spacing::MD);
+        if let Some(error) = &self.import_error {
+            content = content.push(
+                container(
+                    scrollable(
+                        text(error.as_str())
+                            .size(design::typography::BODY)
+                            .color(design::STATUS_ERROR),
+                    )
+                    .height(Length::Fixed(58.0)),
+                )
+                .padding(design::spacing::SM)
+                .width(Length::Fill)
+                .style(|_| design::surface()),
+            );
+        }
+        let can_import = !self.import_content.text().trim().is_empty()
+            && self.import_content.text().len() <= MAX_THEME_FILE_BYTES;
+        let import_button = button(text("Import Theme").size(design::typography::BODY))
+            .padding([design::spacing::SM, design::spacing::LG])
+            .style(design::primary_button);
+        let import_button = if can_import {
+            import_button.on_press(Message::SubmitThemeImport)
+        } else {
+            import_button
+        };
+        content = content.push(rule::horizontal(1)).push(
+            row![
+                space::horizontal().width(Length::Fill),
+                button(text("Cancel").size(design::typography::BODY))
+                    .padding([design::spacing::SM, design::spacing::LG])
+                    .style(design::secondary_button)
+                    .on_press(Message::CancelThemeImport),
+                import_button
+            ]
+            .spacing(design::spacing::SM)
+            .align_y(Alignment::Center),
+        );
+        let panel = container(content)
+            .padding(design::spacing::XL)
+            .width(Length::FillPortion(8))
+            .max_width(680)
+            .style(|_| design::surface());
+        container(panel)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .padding(design::spacing::LG)
+            .style(|_| container::Style {
+                background: Some(iced::Background::Color(iced::Color::from_rgba8(
+                    0, 0, 0, 0.62,
+                ))),
+                ..container::Style::default()
+            })
+            .into()
     }
 
     fn sidebar(&self) -> Element<'_, Message> {
@@ -758,7 +951,7 @@ impl App {
                         .size(design::typography::CAPTION)
                         .color(design::TEXT_SECONDARY),
                     checkbox(self.start_on_startup)
-                        .label("Start Now Playing Studio when I sign in")
+                        .label("Start nowplaying when I sign in")
                         .on_toggle(Message::StartupToggled),
                     text("The app will open in the background with its tray icon.")
                         .size(design::typography::CAPTION)
@@ -892,15 +1085,24 @@ impl App {
             .and_then(|name| name.to_str())
             .unwrap_or("Unknown theme file");
         container(
-            column![
-                text(filename)
-                    .size(design::typography::HEADING)
-                    .color(design::TEXT_SECONDARY),
-                text(format!("Invalid theme: {}", issue.message))
-                    .size(design::typography::CAPTION)
-                    .color(design::TEXT_SECONDARY),
+            row![
+                column![
+                    text(filename)
+                        .size(design::typography::HEADING)
+                        .color(design::TEXT_SECONDARY),
+                    text(format!("Invalid theme: {}", issue.message))
+                        .size(design::typography::CAPTION)
+                        .color(design::TEXT_SECONDARY),
+                ]
+                .spacing(design::spacing::SM),
+                space::horizontal().width(Length::Fill),
+                button(text("Edit"))
+                    .padding([design::spacing::SM, design::spacing::MD])
+                    .style(design::secondary_button)
+                    .on_press(Message::OpenThemeFile(issue.path.clone())),
             ]
-            .spacing(design::spacing::SM),
+            .align_y(Alignment::Center)
+            .spacing(design::spacing::MD),
         )
         .padding(design::spacing::LG)
         .width(Length::Fill)
@@ -1099,6 +1301,46 @@ async fn pick_theme_file() -> Option<PathBuf> {
         .map(|file| file.path().to_owned())
 }
 
+fn is_theme_path(path: &std::path::Path) -> bool {
+    path.extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))
+}
+
+async fn read_import_file(path: PathBuf) -> Result<(String, String), String> {
+    if !is_theme_path(&path) {
+        return Err("Choose a .toml theme file.".to_owned());
+    }
+    let metadata = tokio::fs::metadata(&path)
+        .await
+        .map_err(|error| format!("Could not read {}: {error}", path.display()))?;
+    if !metadata.is_file() {
+        return Err("The selected theme path is not a file.".to_owned());
+    }
+    if metadata.len() > MAX_THEME_FILE_BYTES as u64 {
+        return Err(format!(
+            "Theme files must be no larger than {} MiB.",
+            MAX_THEME_FILE_BYTES / (1024 * 1024)
+        ));
+    }
+    let bytes = tokio::fs::read(&path)
+        .await
+        .map_err(|error| format!("Could not read {}: {error}", path.display()))?;
+    if bytes.len() > MAX_THEME_FILE_BYTES {
+        return Err(format!(
+            "Theme files must be no larger than {} MiB.",
+            MAX_THEME_FILE_BYTES / (1024 * 1024)
+        ));
+    }
+    let contents =
+        String::from_utf8(bytes).map_err(|_| "Theme file is not valid UTF-8.".to_owned())?;
+    let filename = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("theme.toml")
+        .to_owned();
+    Ok((filename, contents))
+}
+
 fn pick_with_kdialog() -> Option<Option<PathBuf>> {
     let start_directory = std::env::var_os("HOME").unwrap_or_else(|| ".".into());
     let output = Command::new("kdialog")
@@ -1182,7 +1424,26 @@ fn autostart_file_path(settings_path: &std::path::Path) -> Option<PathBuf> {
     settings_path
         .parent()?
         .parent()
-        .map(|config_dir| config_dir.join("autostart/now-playing-studio.desktop"))
+        .map(|config_dir| config_dir.join("autostart/nowplaying.desktop"))
+}
+
+pub async fn migrate_legacy_autostart(settings_path: &std::path::Path) -> Result<(), String> {
+    let current = autostart_file_path(settings_path)
+        .ok_or_else(|| "Could not determine the XDG autostart directory.".to_owned())?;
+    let legacy = current
+        .parent()
+        .ok_or_else(|| "The XDG autostart path has no parent directory.".to_owned())?
+        .join("now-playing-studio.desktop");
+    if tokio::fs::try_exists(&legacy)
+        .await
+        .map_err(|error| format!("Could not check the old autostart entry: {error}"))?
+    {
+        set_autostart(settings_path, true).await?;
+        tokio::fs::remove_file(&legacy)
+            .await
+            .map_err(|error| format!("Could not remove the old autostart entry: {error}"))?;
+    }
+    Ok(())
 }
 
 async fn set_autostart(settings_path: &std::path::Path, enabled: bool) -> Result<bool, String> {
@@ -1205,7 +1466,7 @@ async fn set_autostart(settings_path: &std::path::Path, enabled: bool) -> Result
         .replace('`', "\\`")
         .replace('$', "\\$");
     let contents = format!(
-        "[Desktop Entry]\nType=Application\nVersion=1.0\nName=Now Playing Studio\nComment=MPRIS player monitor and OBS browser source\nExec=\"{escaped_executable}\"\nTerminal=false\nNoDisplay=true\nX-GNOME-Autostart-enabled=true\nStartupNotify=false\n"
+        "[Desktop Entry]\nType=Application\nVersion=1.0\nName=nowplaying\nComment=MPRIS player monitor and OBS browser source\nExec=\"{escaped_executable}\"\nTerminal=false\nNoDisplay=true\nX-GNOME-Autostart-enabled=true\nStartupNotify=false\n"
     );
     let parent = path
         .parent()
@@ -1213,7 +1474,7 @@ async fn set_autostart(settings_path: &std::path::Path, enabled: bool) -> Result
     tokio::fs::create_dir_all(parent)
         .await
         .map_err(|error| format!("Could not create the XDG autostart directory: {error}"))?;
-    let temporary = parent.join(format!(".now-playing-studio.tmp-{}", std::process::id()));
+    let temporary = parent.join(format!(".nowplaying.tmp-{}", std::process::id()));
     tokio::fs::write(&temporary, contents)
         .await
         .map_err(|error| format!("Could not write the startup entry: {error}"))?;
@@ -1228,7 +1489,7 @@ fn app_theme(_: &App, _: window::Id) -> Theme {
 }
 
 fn app_title(_: &App, _: window::Id) -> String {
-    "Now Playing Studio".to_owned()
+    "nowplaying".to_owned()
 }
 
 fn app_view(app: &App, _: window::Id) -> Element<'_, Message> {
@@ -1261,8 +1522,8 @@ fn window_settings() -> window::Settings {
         position: window::Position::Centered,
         exit_on_close_request: false,
         platform_specific: window::settings::PlatformSpecific {
-            application_id: std::env::var("NOW_PLAYING_STUDIO_APP_ID")
-                .unwrap_or_else(|_| "now-playing-studio".to_owned()),
+            application_id: std::env::var("NOWPLAYING_APP_ID")
+                .unwrap_or_else(|_| "nowplaying".to_owned()),
             ..window::settings::PlatformSpecific::default()
         },
         ..window::Settings::default()

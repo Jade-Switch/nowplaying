@@ -1,12 +1,15 @@
 [package]
-name = "now-playing-studio"
+name = "nowplaying"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
-description = "A lightweight local Now Playing runtime and theme switcher"
+description = "A lightweight local nowplaying runtime and theme switcher"
+
+[lib]
+name = "nowplaying"
 
 [[bin]]
-name = "now-playing-studio"
+name = "nowplaying"
 path = "src/main.rs"
 
 [dependencies]

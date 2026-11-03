@@ -3,7 +3,7 @@ id = "catppuccin-mocha"
 name = "Catppuccin Mocha"
 version = "1.0.0"
 format_version = 1
-author = "Now Playing Studio"
+author = "nowplaying"
 description = "A compact album-art and metadata display using the Catppuccin Mocha palette."
 
 [theme.compatibility]

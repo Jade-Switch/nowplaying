@@ -58,7 +58,7 @@ jobs:
           github.event_name == 'push' && github.ref == 'refs/heads/main' &&
           vars.CACHIX_CACHE_NAME == ''
         run: echo "::warning::Set the CACHIX_CACHE_NAME Actions variable and CACHIX_AUTH_TOKEN secret to publish Nix builds to Cachix."
-      - run: nix build --accept-flake-config --no-link .#packages.x86_64-linux.now-playing-studio
+      - run: nix build --accept-flake-config --no-link .#packages.x86_64-linux.nowplaying
 
   flatpak:
     name: Flatpak bundle
@@ -84,18 +84,5 @@ jobs:
             "$RUNNER_TEMP/flatpak-build" \
             packaging/flatpak/io.github.Jade-Switch.nowplaying.yml
           flatpak build-bundle "$RUNNER_TEMP/flatpak-repo" \
-            "$RUNNER_TEMP/now-playing-studio.flatpak" \
+            "$RUNNER_TEMP/nowplaying.flatpak" \
             io.github.Jade-Switch.nowplaying stable
-
-  snap:
-    name: Snap package
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install Snapcraft
-        run: sudo snap install snapcraft --classic --channel=latest/stable
-      - name: Check version metadata
-        run: python3 packaging/validate-release-version.py
-      - name: Build Snap package
-        working-directory: packaging/snap
-        run: snapcraft pack --destructive-mode

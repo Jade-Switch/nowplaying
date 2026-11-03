@@ -1,5 +1,5 @@
 {
-  description = "Now Playing Studio desktop application and OBS source runtime";
+  description = "nowplaying desktop application and OBS source runtime";
 
   nixConfig = {
     extra-substituters = [ "https://nowplaying.cachix.org" ];
@@ -21,7 +21,7 @@
           version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
           runtimeLibraries = with pkgs; [ libxkbcommon wayland libGL ];
           app = pkgs.rustPlatform.buildRustPackage {
-            pname = "now-playing-studio";
+            pname = "nowplaying";
             inherit version;
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
@@ -31,38 +31,38 @@
             buildInputs = runtimeLibraries;
             nativeBuildInputs = with pkgs; [ makeWrapper pkg-config copyDesktopItems ];
             desktopItems = [ (pkgs.makeDesktopItem {
-              name = "now-playing-studio";
-              desktopName = "Now Playing Studio";
+              name = "nowplaying";
+              desktopName = "nowplaying";
               comment = "MPRIS player monitor and OBS browser source";
-              exec = "now-playing-studio";
-              icon = "now-playing-studio";
+              exec = "nowplaying";
+              icon = "nowplaying";
               terminal = false;
               categories = [ "AudioVideo" "Audio" "Player" ];
             }) ];
 
             postInstall = ''
-              install -Dm644 ${./assets/now-playing-studio.svg} \
-                $out/share/icons/hicolor/scalable/apps/now-playing-studio.svg
-              wrapProgram $out/bin/now-playing-studio \
+              install -Dm644 ${./assets/nowplaying.svg} \
+                $out/share/icons/hicolor/scalable/apps/nowplaying.svg
+              wrapProgram $out/bin/nowplaying \
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xdg-utils pkgs.kdePackages.kdialog ]} \
                 --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath runtimeLibraries}
             '';
 
             meta = {
               description = "MPRIS player monitor and customizable OBS browser source";
-              mainProgram = "now-playing-studio";
+              mainProgram = "nowplaying";
               platforms = systems;
             };
           };
         in {
           default = app;
-          now-playing-studio = app;
+          nowplaying = app;
         });
 
       apps = forAllSystems (system: {
         default = {
           type = "app";
-          program = "${self.packages.${system}.default}/bin/now-playing-studio";
+          program = "${self.packages.${system}.default}/bin/nowplaying";
         };
       });
     };

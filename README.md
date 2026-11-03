@@ -1,145 +1,97 @@
-# Now Playing Studio
+# nowplaying
 
-A lightweight, theme-driven Now Playing application for Linux, built around MPRIS and OBS Browser Sources.
-
-Now Playing Studio monitors local media players, collects playback information and artwork, and serves it through a local web interface. OBS can use that interface as a Browser Source, while the desktop application provides a simple way to manage themes and playback sources.
-
-The application is designed to keep the runtime relatively small and predictable while leaving the visual presentation to themes.
+nowplaying is a Linux desktop app that reads playback data from MPRIS media
+players and serves a customizable page for OBS Browser Sources. Its desktop
+interface manages themes, playback sources, and runtime settings.
 
 ## Features
 
-- **MPRIS integration** — discover and monitor compatible media players on Linux.
-- **OBS Browser Source** — display playback information through a local HTTP endpoint.
-- **Live updates** — keep track information, playback state, position, and artwork synchronised.
-- **Single-file themes** — each theme is distributed as one self-contained TOML file containing its HTML, CSS, JavaScript, and embedded assets.
-- **Custom presentation** — themes control their own layout, styling, and animations.
-- **Artwork handling** — retrieve and cache album artwork for display.
-- **Desktop interface** — manage installed themes, select playback sources, and access runtime settings.
-- **System tray integration** — keep the runtime running without leaving the main window open.
-- **Linux packages** — Nix, Flatpak, and Snap builds are produced by GitHub Actions.
-
-## Themes
-
-Themes are intentionally independent of the Rust application's layout.
-
-Each theme is a single `.toml` file. It contains its own HTML, CSS, JavaScript, configuration, and optional embedded assets. No theme-specific folders, external stylesheets, or archives are required.
-
-This makes themes easy to share, back up, and install without modifying the application itself.
-
-The runtime exposes playback information through a documented JavaScript API, allowing themes to handle their own presentation and behaviour.
-
-See [Themes and the browser playback API](docs/theme-format.md) for the file
-format, playback data, and a working example.
+- Discovers and monitors MPRIS players over the session D-Bus.
+- Serves playback state and theme pages over a loopback-only HTTP service.
+- Updates connected browser clients over WebSockets.
+- Loads single-file TOML themes with embedded HTML, CSS, JavaScript, and assets.
+- Caches artwork when the selected theme requests it.
+- Provides a desktop interface, system tray integration, and optional autostart.
 
 ## OBS
 
-Now Playing Studio provides a local endpoint that can be added to OBS as a Browser Source.
+Add a Browser Source with this default URL:
 
-Default address:
-
-`http://127.0.0.1:9005/`
-
-The displayed content is controlled by the currently selected theme. The local runtime handles playback information and updates independently of the OBS browser window.
-
-## Technology
-
-- Rust
-- Iced
-- MPRIS / D-Bus
-- Tokio
-- Axum
-- WebSockets
-- TOML
-- HTML, CSS, and JavaScript
-
-## Building
-
-A Rust toolchain with Cargo is required.
-
-Clone the repository:
-
-```bash
-git clone https://github.com/Jade-Switch/nowplaying.git
-cd nowplaying
+```text
+http://127.0.0.1:9005/
 ```
 
-Build the application:
+The service listens only on the local machine. If you change its port in the
+app's Settings, copy the updated URL from the Playback page.
 
-```bash
-cargo build --release
-```
+## Install
 
-Run the test suite:
+### Nix
 
-```bash
-cargo test --workspace --locked
-```
-
-For development, you can use:
-
-```bash
-cargo build
-```
-
-Linux systems require a working D-Bus session and compatible MPRIS media players for playback integration.
-
-## How to install with Nix
-
-To install it into your user profile, so KDE can index its desktop launcher, run:
+Install into your user profile:
 
 ```sh
 nix profile install github:Jade-Switch/nowplaying
 ```
 
-You can also run the latest version directly from GitHub without adding it to
-your profile:
+Or run without installing:
 
 ```sh
 nix run github:Jade-Switch/nowplaying
 ```
 
-The Nix package includes `kdialog` as a native fallback for importing themes,
-so KDE's portal backend does not need to be enabled just for the file picker.
-Flatpak and Snap use the desktop file-picker portal. The app expects a logged-in
-desktop session with session D-Bus. KDE also supplies the StatusNotifier watcher
-used for the tray icon. MPRIS players must be running in the same session.
-Without a tray watcher, closing the app window exits it.
+The flake supports `x86_64-linux` and `aarch64-linux`.
 
-To include the app in a NixOS flake configuration, add it as an input:
+For NixOS, add the flake as an input:
 
 ```nix
-inputs.now-playing-studio = {
+inputs.nowplaying = {
   url = "github:Jade-Switch/nowplaying";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
 
-Then add it to your package list:
+Then add `inputs.nowplaying.packages.${pkgs.system}.default` to
+`environment.systemPackages` and rebuild your system.
 
-```nix
-environment.systemPackages = [
-  inputs.now-playing-studio.packages.${pkgs.system}.default
-];
+### Flatpak
+
+Tagged GitHub releases include a `.flatpak` bundle. Install a downloaded bundle
+with:
+
+```sh
+flatpak install --user ./nowplaying-VERSION.flatpak
 ```
 
-Rebuild with `sudo nixos-rebuild switch --flake /etc/nixos#<hostname>`. The
-package includes a desktop launcher and icon. Its Settings startup checkbox
-manages an XDG autostart entry in `~/.config/autostart`.
+The bundle uses the Freedesktop 25.08 runtime from Flathub. Flatpak updates are
+installed through a new release bundle; automatic update delivery is not
+configured by this repository.
 
-The OBS service listens on loopback (default `127.0.0.1:9005`) and is intended
-for OBS on the same machine. Copy the URL from the Playback page if you changed
-the port in Settings.
+## Themes
 
-## Project structure
+Themes are TOML files containing their own HTML, CSS, JavaScript, and optional
+embedded assets. Import a file or paste its contents on the Themes page. The
+app validates the theme before storing it and does not overwrite another theme
+with the same ID.
 
-The project is organised into separate components for playback integration, application state, theme handling, the local server, and the desktop interface.
+See [the theme format and browser API](docs/theme-format.md) for the schema,
+playback data, and a working example.
 
-The intention is to keep these responsibilities separated without introducing unnecessary complexity into the runtime.
+## Build from source
 
-## Documentation
+Requires Rust 1.88 or newer, the Linux GUI development libraries for Iced, and a
+session D-Bus for desktop integration.
 
-- [Themes and the browser playback API](docs/theme-format.md)
+```sh
+git clone https://github.com/Jade-Switch/nowplaying.git
+cd nowplaying
+cargo build --release --locked
+cargo test --workspace --locked
+```
+
+Run the development build with `cargo run`. The release binary is
+`target/release/nowplaying`.
 
 ## License
 
-This repository does not currently include a license file.
+The repository does not currently include a license file.

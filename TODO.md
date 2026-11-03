@@ -139,29 +139,12 @@ implemented work remains unchecked.
 
 ## Phase 7 — Native GUI and design system
 
-Progress note: the initial window shell, theme catalog/select/refresh flow, and
-live playback summary are implemented in `src/gui/app.rs`. The first launch
-revealed that the Iced event loop must run on the main thread, while Tokio
-services run on its worker threads. That startup path is now in place, and the
-user confirmed the window appears. Theme/player interactions and layouts at
-multiple sizes still need review. TOML theme import now uses an asynchronous
-native file picker and updates the catalog after validation. The Playback source
-dropdown is wired to the MPRIS provider's automatic/manual selection and
-player-discovery watches; artwork thumbnails load through the existing cache.
-Rectangular browser-source artwork now uses a contained fit in the reference
-theme. The first import-picker launch lacked the runtime `libdbus` path and
-zenity fallback, so the dialog returned no selection; the picker now reports
-that state in the UI, and the latest GUI launch includes those runtime paths.
-Theme cards now offer editor launch and confirmed deletion; deleting the active
-theme is blocked. Playback artwork thumbnails use a contained fit for
-non-square covers. Theme cards now open a non-activating browser preview with
-preview-specific embedded asset routes. The sidebar now has a clipboard action
-for the OBS Browser Source URL. Settings edits `server_port` in-app and restarts
-the application to apply it, and opens the themes folder in the system file
-manager; the redundant config-file opener has been removed. The window has an
-800×560 minimum size. The user has confirmed the themes, playback, preview,
-URL-copy and port-restart flows; folder opening and layouts at multiple sizes
-still need review.
+Progress note: the GUI includes theme discovery, import, preview, selection,
+editing, deletion, playback source selection, and settings. Theme file and
+pasted-text imports share validation and storage. File drop events depend on
+the platform backend; Iced's Wayland backend currently does not provide them.
+Layouts at smaller window sizes and some end-to-end desktop flows still need
+review.
 
 - [x] Establish the smoked-glass lavender design system.
 - [x] Define reusable colours, typography, spacing and component styles.
@@ -194,7 +177,7 @@ window but keeps the Iced daemon and runtime alive; Open creates a fresh window.
 This avoids Wayland's unsupported unminimize operation. Without a watcher, close
 exits as usual. Tray close, Open, and Quit behavior has been verified by the user
 on KDE Plasma Wayland. Settings includes a startup checkbox that adds or removes
-`~/.config/autostart/now-playing-studio.desktop`.
+`~/.config/autostart/nowplaying.desktop`.
 
 - [x] Implement system tray integration.
 - [x] Implement open/show application.
@@ -209,17 +192,13 @@ on KDE Plasma Wayland. Settings includes a startup checkbox that adds or removes
 
 **Deliverable:** A background application that behaves reliably as a desktop utility.
 
-## Phase 9 — NixOS packaging and documentation
+## Phase 9 — Linux packaging and installation docs
 
-Progress note: a Nix flake defines Linux packages and `nix run`, with a
-desktop launcher, bundled scalable SVG application icon, and runtime library
-paths for the GUI. NixOS installation, desktop session, OBS, and troubleshooting
-instructions are in `docs/nixos.md`; system installs use the GitHub flake input
-`github:Jade-Switch/nowplaying`. `nix flake metadata` and `nix flake show`
-confirm the repository resolves and exports the documented package.
-`nix build path:.#now-playing-studio` succeeds. The derivation compiles the
-release binary without running the project's tests; clean-install and desktop
-runtime verification remain.
+Progress note: the Nix flake supports `x86_64-linux` and `aarch64-linux`,
+provides a desktop launcher, and declares the Cachix substituter. The README
+contains install and NixOS flake instructions. GitHub Actions builds Nix and
+Flatpak packages; tagged releases publish a Flatpak bundle. Clean-install and
+desktop runtime checks remain.
 
 - [x] Create a reproducible Nix package.
 - [x] Add required runtime dependencies.
@@ -229,7 +208,7 @@ runtime verification remain.
 - [x] Document NixOS installation.
 - [x] Document OBS setup.
 - [x] Document theme installation and creation.
-- [x] Document troubleshooting.
+- [ ] Document troubleshooting.
 - [ ] Verify a clean installation on NixOS.
 - [ ] Verify application startup and tray operation.
 - [ ] Verify runtime operation after the GUI is hidden.
@@ -238,11 +217,11 @@ runtime verification remain.
 
 ## Phase 10 — Stability and release preparation
 
-- [ ] Run the complete test suite.
-- [ ] Run formatting checks.
+- [x] Run the complete test suite.
+- [x] Run formatting checks.
 - [ ] Run Clippy with warnings denied.
-- [ ] Verify theme import and export.
-- [ ] Verify invalid-theme recovery.
+- [x] Verify theme import and export.
+- [x] Verify invalid-theme recovery.
 - [ ] Verify player disconnect and reconnect.
 - [ ] Verify multiple MPRIS players.
 - [ ] Verify artwork cache behaviour.

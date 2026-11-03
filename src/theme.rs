@@ -183,11 +183,17 @@ impl Default for ArtworkConfig {
         Self {
             enabled: false,
             position: ArtworkPosition::Hidden,
-            width: 144,
-            height: 144,
+            width: 0,
+            height: 0,
             fit: "cover".into(),
             rendering: "auto".into(),
         }
+    }
+}
+
+impl ArtworkConfig {
+    pub fn should_load(&self) -> bool {
+        self.enabled && self.width > 0 && self.height > 0
     }
 }
 
@@ -499,10 +505,8 @@ fn validate_document(
     if document.layout.spacing > 256 || document.layout.padding > 256 {
         return invalid("layout spacing and padding must be at most 256");
     }
-    if !(1..=2048).contains(&document.artwork.width)
-        || !(1..=2048).contains(&document.artwork.height)
-    {
-        return invalid("artwork width and height must be between 1 and 2048");
+    if document.artwork.width > 2048 || document.artwork.height > 2048 {
+        return invalid("artwork width and height must be at most 2048");
     }
     validate_text("artwork.fit", &document.artwork.fit, 32, true)?;
     validate_text("artwork.rendering", &document.artwork.rendering, 32, true)?;
@@ -744,6 +748,19 @@ impl ThemeManager {
             ));
         }
         let bytes = read_limited(source, MAX_THEME_FILE_BYTES).await?;
+        self.import_bytes(&bytes).await
+    }
+
+    /// Parse and store theme text using the same validation and duplicate-safe
+    /// persistence path as file imports.
+    pub async fn import_content(&self, source: &str) -> Result<Arc<LoadedTheme>, ThemeError> {
+        self.import_bytes(source.as_bytes()).await
+    }
+
+    async fn import_bytes(&self, bytes: &[u8]) -> Result<Arc<LoadedTheme>, ThemeError> {
+        if bytes.len() > MAX_THEME_FILE_BYTES {
+            return Err(ThemeError::TooLarge);
+        }
         let mut theme = self.loader.parse(&bytes)?;
         let id = theme.id().to_owned();
         let destination = self.themes_dir.join(format!("{id}.toml"));
@@ -1136,6 +1153,39 @@ template = "<main id='player'></main>"
                 .unwrap(),
             VALID_THEME.as_bytes()
         );
+    }
+
+    #[tokio::test]
+    async fn importing_theme_text_uses_validation_and_preserves_existing_themes() {
+        let dir = TestDirectory::new("import-content");
+        let themes_dir = dir.0.join("themes");
+        let manager = ThemeManager::new(&themes_dir, dir.0.join("settings.toml"), loader())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            manager.import_content(VALID_THEME).await.unwrap().id(),
+            "sample-player"
+        );
+        assert!(matches!(
+            manager.import_content("[theme\nid = \"broken\"").await,
+            Err(ThemeError::Toml(_))
+        ));
+        let invalid_schema = VALID_THEME.replace("format_version = 1", "format_version = 2");
+        assert!(matches!(
+            manager.import_content(&invalid_schema).await,
+            Err(ThemeError::UnsupportedFormat(2))
+        ));
+        assert!(matches!(
+            manager.import_content(VALID_THEME).await,
+            Err(ThemeError::AlreadyExists(_))
+        ));
+
+        let stored = tokio::fs::read_to_string(themes_dir.join("sample-player.toml"))
+            .await
+            .unwrap();
+        assert_eq!(stored, VALID_THEME);
+        assert_eq!(manager.catalog().await.themes.len(), 1);
     }
 
     #[tokio::test]

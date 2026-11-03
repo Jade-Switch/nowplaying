@@ -12,7 +12,7 @@ use std::{
 };
 
 use fs2::FileExt;
-use now_playing_studio::{
+use nowplaying::{
     artwork::{ArtworkCache, ArtworkCacheConfig},
     gui::app::{self as gui, GuiContext},
     mpris::{PlaybackHandle, PlayerSelection},
@@ -34,9 +34,11 @@ struct AppPaths {
     cache: PathBuf,
 }
 
+const LEGACY_APP_DIRECTORY: &str = "now-playing-studio";
+
 struct RunningApp {
     themes: ThemeManager,
-    discovery: now_playing_studio::theme::ThemeDiscovery,
+    discovery: nowplaying::theme::ThemeDiscovery,
     active_theme: Option<String>,
     playback_provider: Option<PlaybackHandle>,
     playback_api: Arc<PlaybackApi>,
@@ -49,11 +51,70 @@ struct RunningApp {
 impl AppPaths {
     fn discover() -> io::Result<Self> {
         Ok(Self {
-            config: xdg_path("XDG_CONFIG_HOME", ".config")?.join("now-playing-studio"),
-            data: xdg_path("XDG_DATA_HOME", ".local/share")?.join("now-playing-studio"),
-            cache: xdg_path("XDG_CACHE_HOME", ".cache")?.join("now-playing-studio"),
+            config: xdg_path("XDG_CONFIG_HOME", ".config")?.join("nowplaying"),
+            data: xdg_path("XDG_DATA_HOME", ".local/share")?.join("nowplaying"),
+            cache: xdg_path("XDG_CACHE_HOME", ".cache")?.join("nowplaying"),
         })
     }
+
+    fn instance_lock_path(&self) -> PathBuf {
+        let legacy_config = legacy_sibling(&self.config);
+        if legacy_config.exists() {
+            legacy_config.join("instance.lock")
+        } else {
+            self.config.join("instance.lock")
+        }
+    }
+
+    async fn migrate_legacy_directories(&self) -> io::Result<()> {
+        migrate_directory(&legacy_sibling(&self.config), &self.config).await?;
+        migrate_directory(&legacy_sibling(&self.data), &self.data).await?;
+        migrate_directory(&legacy_sibling(&self.cache), &self.cache).await
+    }
+}
+
+fn legacy_sibling(path: &std::path::Path) -> PathBuf {
+    path.parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join(LEGACY_APP_DIRECTORY)
+}
+
+async fn migrate_directory(legacy: &std::path::Path, current: &std::path::Path) -> io::Result<()> {
+    if !tokio::fs::try_exists(legacy).await? {
+        return Ok(());
+    }
+    if !tokio::fs::try_exists(current).await? {
+        return tokio::fs::rename(legacy, current).await;
+    }
+
+    tokio::fs::create_dir_all(current).await?;
+    let mut entries = tokio::fs::read_dir(legacy).await?;
+    let mut has_unmigrated_entries = false;
+    while let Some(entry) = entries.next_entry().await? {
+        let source = entry.path();
+        let destination = current.join(entry.file_name());
+        if !tokio::fs::try_exists(&destination).await? {
+            tokio::fs::rename(source, destination).await?;
+            continue;
+        }
+
+        let source_is_directory = entry.file_type().await?.is_dir();
+        let destination_is_directory = tokio::fs::metadata(&destination).await?.is_dir();
+        if source_is_directory && destination_is_directory {
+            Box::pin(migrate_directory(&source, &destination)).await?;
+            if tokio::fs::try_exists(&source).await? {
+                has_unmigrated_entries = true;
+            }
+        } else {
+            warn!(path = %source.display(), "Keeping a legacy app file because its new-name path already exists");
+            has_unmigrated_entries = true;
+        }
+    }
+
+    if !has_unmigrated_entries {
+        tokio::fs::remove_dir(legacy).await?;
+    }
+    Ok(())
 }
 
 fn xdg_path(variable: &str, home_suffix: &str) -> io::Result<PathBuf> {
@@ -76,8 +137,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .init();
 
     let paths = AppPaths::discover()?;
-    let Some(_instance_lock) = InstanceLock::acquire(&paths.config.join("instance.lock"))? else {
-        info!("Now Playing Studio is already running");
+    let Some(_instance_lock) = InstanceLock::acquire(&paths.instance_lock_path())? else {
+        info!("nowplaying is already running");
         return Ok(());
     };
 
@@ -183,6 +244,7 @@ impl InstanceLock {
 
 async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
     let paths = AppPaths::discover()?;
+    paths.migrate_legacy_directories().await?;
     tokio::fs::create_dir_all(&paths.config).await?;
     tokio::fs::create_dir_all(&paths.data).await?;
     tokio::fs::create_dir_all(&paths.cache).await?;
@@ -192,6 +254,9 @@ async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
     install_reference_theme(&themes_dir).await?;
 
     let settings_path = paths.config.join("settings.toml");
+    if let Err(error) = gui::migrate_legacy_autostart(&settings_path).await {
+        warn!(%error, "Could not migrate the old autostart entry");
+    }
     let themes = ThemeManager::new(&themes_dir, &settings_path, ThemeLoader::current()).await?;
     let discovery = themes.refresh().await?;
     for issue in &discovery.issues {

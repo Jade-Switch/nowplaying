@@ -47,7 +47,7 @@ pub mod typography {
 /// where the palette's six semantic roles are not expressive enough.
 pub fn theme() -> Theme {
     Theme::custom(
-        "Now Playing Studio",
+        "nowplaying",
         Palette {
             background: BACKGROUND,
             text: TEXT_PRIMARY,

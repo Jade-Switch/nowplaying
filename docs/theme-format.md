@@ -52,11 +52,11 @@ these strings into the page; it does not substitute variables into the HTML.
 
 ## Playback data
 
-`NowPlaying.subscribe(callback)` calls the callback with the current snapshot
-when it becomes available and again whenever playback changes. It returns a
-function that stops that subscription. The snapshot is the complete current
-state, so render from it instead of trying to reconstruct state from event
-names.
+`NowPlaying.subscribe(callback)` calls the callback with `(snapshot, kind)`
+after the initial state arrives and whenever it changes. `kind` is an event
+name such as `trackChanged` or `positionUpdated`. It returns an unsubscribe
+function. The snapshot is the complete current state, so render from it instead
+of reconstructing state from event names.
 
 The snapshot has this shape:
 
@@ -79,19 +79,20 @@ The snapshot has this shape:
 }
 ```
 
-Fields such as `player`, `title`, `album`, `trackId`, `artworkUrl`,
-`durationMs`, and `shuffle` can be `null`. `artists` is always an array;
-`positionMs` is an integer in milliseconds. Status is `playing`, `paused`,
+`player`, `title`, `album`, `trackId`, `artworkUrl`, `durationMs`, and
+`shuffle` can be `null`. `artists` is always an array; `positionMs` is an
+integer in milliseconds. Status is `playing`, `paused`,
 `stopped`, or `unknown`. Repeat is `none`, `track`, `playlist`, or `unknown`.
 The player is `null` when disconnected. Artwork is served locally as
 `artworkUrl`; themes do not receive the original media URI.
 
 Use `NowPlaying.getState()` to read the latest snapshot (or `null` before one
 has arrived). `NowPlaying.on(kind, callback)` subscribes to one event kind;
-the callback receives `(snapshot, event)`. Both subscription methods return an
-unsubscribe function. Events include `trackChanged`, `playbackStarted`,
-`playbackPaused`, `playbackStopped`, `positionUpdated`, and `metadataUpdated`.
-The `event.kind` is also passed as the second argument to `subscribe`.
+its callback receives `(snapshot, message)`, where `message` contains `kind`
+and `snapshot`. Both subscription methods return an unsubscribe function.
+Events include `snapshot`, `playerConnected`, `playerDisconnected`,
+`playerChanged`, `trackChanged`, `playbackStarted`, `playbackPaused`,
+`playbackStopped`, `positionUpdated`, and `metadataUpdated`.
 
 The browser runtime fetches the initial state and then receives live updates
 over a WebSocket, reconnecting if it disconnects. Themes normally only need
@@ -115,6 +116,12 @@ shipped themes implement their presentation in HTML and CSS and use JavaScript
 to update it. Start with the minimal example above; add these tables only when
 they are useful to document your theme's choices.
 
+Artwork is only resolved and exposed as `metadata.artworkUrl` when
+`[artwork].enabled` is `true` and both `width` and `height` are positive.
+Missing dimensions default to `0`, and a dimension set to `0` disables artwork
+loading. This lets themes that do not display artwork avoid fetching or caching
+it.
+
 ## Embedded assets
 
 Optional `[assets.<id>]` entries embed Base64-encoded data in the theme file:
@@ -135,14 +142,16 @@ or inline SVG, as the shipped Starfall theme does.
 Theme files must be plain TOML. Markdown code fences such as ` ```toml ` are
 documentation formatting and must not be included in a theme file.
 
-Import validates the complete file and stores it in
-`~/.local/share/now-playing-studio/themes` (or the XDG data directory). Import
-moves the selected file. Export copies a theme file; Edit opens the installed
-file in the default text editor. The app does not overwrite an existing theme
-with the same ID. Invalid themes are reported without preventing other themes
-from loading.
+Import validates the complete TOML and stores it in
+`$XDG_DATA_HOME/nowplaying/themes` (by default,
+`~/.local/share/nowplaying/themes`). File imports load the contents into the
+editor; importing saves a copy and leaves the selected file untouched. The
+editor also accepts pasted TOML. Files and input are limited to 8 MiB. The app
+does not overwrite an existing theme with the same ID. Invalid themes are
+reported without preventing other themes from loading. Edit opens the installed
+file in the system's default text editor.
 
 Theme HTML and JavaScript run as browser content. They have no native command
-or filesystem bridge. The runtime applies a Content Security Policy, but
-browser JavaScript can still make network requests. Import themes only from
-authors you trust.
+or filesystem bridge. The runtime's Content Security Policy limits images,
+scripts, styles, and network connections to the app's local origin (with data
+URLs allowed for images and fonts). Import themes only from authors you trust.

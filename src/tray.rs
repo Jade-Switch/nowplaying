@@ -36,7 +36,7 @@ impl Tray for StudioTray {
     }
 
     fn title(&self) -> String {
-        "Now Playing Studio".to_owned()
+        "nowplaying".to_owned()
     }
 
     fn icon_name(&self) -> String {
@@ -52,7 +52,7 @@ impl Tray for StudioTray {
         let quit = self.commands.clone();
         vec![
             StandardItem {
-                label: "Open Now Playing Studio".to_owned(),
+                label: "Open nowplaying".to_owned(),
                 activate: Box::new(move |_| {
                     let _ = show.send(TrayCommand::Show);
                 }),

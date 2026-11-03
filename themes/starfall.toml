@@ -105,7 +105,7 @@ template = """
       </div>
 
       <div class="player-information">
-        <span id="player-name">NOW PLAYING STUDIO</span>
+        <span id="player-name">NOWPLAYING</span>
         <span class="track-count" id="track-count">✦</span>
       </div>
     </section>
@@ -694,7 +694,7 @@ source = """
 
     setText(
       elements.playerName,
-      player.identity || "NOW PLAYING STUDIO"
+      player.identity || "NOWPLAYING"
     );
 
     updateArtwork(

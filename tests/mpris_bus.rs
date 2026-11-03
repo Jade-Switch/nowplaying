@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use now_playing_studio::{
+use nowplaying::{
     mpris::{PlaybackHandle, PlayerSelection},
     playback::{PlaybackEventKind, PlaybackStatus},
 };

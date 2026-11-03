@@ -185,7 +185,7 @@ fn html_response(page: crate::runtime::RenderedPage) -> Response {
 }
 
 async fn playback_state(State(state): State<ServerState>) -> Response {
-    let snapshot = resolve_current_snapshot(&state.playback, &state.artwork).await;
+    let snapshot = resolve_current_snapshot(&state.playback, &state.artwork, &state.themes).await;
     let mut response = Json(snapshot).into_response();
     response
         .headers_mut()
@@ -243,8 +243,16 @@ async fn handle_socket(
     let (mut sender, mut receiver) = socket.split();
     let mut initial = playback.current_event();
     let mut artwork_source = initial.source_artwork_uri.clone();
-    let mut artwork_url = resolve_artwork_url(&artwork, &initial).await;
-    initial.snapshot.metadata.artwork_url = Some(artwork_url.clone());
+    let mut should_load_artwork = themes
+        .active()
+        .await
+        .is_some_and(|theme| theme.document.artwork.should_load());
+    let mut artwork_url = if should_load_artwork {
+        Some(resolve_artwork_url(&artwork, &initial).await)
+    } else {
+        None
+    };
+    initial.snapshot.metadata.artwork_url = artwork_url.clone();
     if !send_event(&mut sender, &initial).await {
         return;
     }
@@ -253,25 +261,43 @@ async fn handle_socket(
         tokio::select! {
             changed = theme_changes.changed() => {
                 if changed.is_err() { break; }
+                let mut event = playback.current_event();
+                should_load_artwork = themes
+                    .active()
+                    .await
+                    .is_some_and(|theme| theme.document.artwork.should_load());
+                artwork_source = event.source_artwork_uri.clone();
+                artwork_url = if should_load_artwork {
+                    Some(resolve_artwork_url(&artwork, &event).await)
+                } else {
+                    None
+                };
+                event.snapshot.metadata.artwork_url = artwork_url.clone();
                 if sender.send(Message::Text(r#"{"kind":"themeChanged"}"#.into())).await.is_err() { break; }
             }
             update = updates.recv() => match update {
                 Ok(mut event) => {
-                    if event.source_artwork_uri != artwork_source {
-                        artwork_url = resolve_artwork_url(&artwork, &event).await;
+                    if should_load_artwork && event.source_artwork_uri != artwork_source {
+                        artwork_url = Some(resolve_artwork_url(&artwork, &event).await);
                         artwork_source = event.source_artwork_uri.clone();
                     }
-                    event.snapshot.metadata.artwork_url = Some(artwork_url.clone());
+                    if !should_load_artwork {
+                        artwork_url = None;
+                    }
+                    event.snapshot.metadata.artwork_url = artwork_url.clone();
                     if !send_event(&mut sender, &event).await { break; }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
                     debug!(skipped, "Browser client lagged; sending a fresh playback snapshot");
                     let mut event = playback.current_event();
-                    if event.source_artwork_uri != artwork_source {
-                        artwork_url = resolve_artwork_url(&artwork, &event).await;
+                    if should_load_artwork && event.source_artwork_uri != artwork_source {
+                        artwork_url = Some(resolve_artwork_url(&artwork, &event).await);
                         artwork_source = event.source_artwork_uri.clone();
                     }
-                    event.snapshot.metadata.artwork_url = Some(artwork_url.clone());
+                    if !should_load_artwork {
+                        artwork_url = None;
+                    }
+                    event.snapshot.metadata.artwork_url = artwork_url.clone();
                     if !send_event(&mut sender, &event).await { break; }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -287,12 +313,25 @@ async fn handle_socket(
     }
 }
 
-async fn resolve_current_snapshot(playback: &PlaybackApi, artwork: &ArtworkCache) -> ApiSnapshot {
+async fn resolve_current_snapshot(
+    playback: &PlaybackApi,
+    artwork: &ArtworkCache,
+    themes: &ThemeManager,
+) -> ApiSnapshot {
     let source = playback.playback_snapshot();
-    let cached_artwork = artwork
-        .resolve_or_fallback(source.metadata.artwork_uri.as_deref())
-        .await;
-    ApiSnapshot::from_playback(&source, Some(cached_artwork.local_url))
+    let should_load_artwork = themes
+        .active()
+        .await
+        .is_some_and(|theme| theme.document.artwork.should_load());
+    let artwork_url = if should_load_artwork {
+        let cached_artwork = artwork
+            .resolve_or_fallback(source.metadata.artwork_uri.as_deref())
+            .await;
+        Some(cached_artwork.local_url)
+    } else {
+        None
+    };
+    ApiSnapshot::from_playback(&source, artwork_url)
 }
 
 async fn resolve_artwork_url(artwork: &ArtworkCache, event: &ApiEvent) -> String {
@@ -449,6 +488,10 @@ version = "1.0.0"
 format_version = 1
 [theme.compatibility]
 minimum_runtime = "0.1.0"
+[artwork]
+enabled = true
+width = 144
+height = 144
 [html]
 template = "<main>Server test</main>"
 [assets.logo]
