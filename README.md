@@ -1,97 +1,172 @@
 # nowplaying
 
-nowplaying is a Linux desktop app that reads playback data from MPRIS media
-players and serves a customizable page for OBS Browser Sources. Its desktop
-interface manages themes, playback sources, and runtime settings.
+**A lightweight Linux desktop application for bringing your music playback into OBS.**
+
+nowplaying monitors MPRIS media players and serves a customizable browser page for OBS Browser Sources. Manage themes, playback sources, and runtime settings through its desktop interface.
 
 ## Features
 
-- Discovers and monitors MPRIS players over the session D-Bus.
-- Serves playback state and theme pages over a loopback-only HTTP service.
-- Updates connected browser clients over WebSockets.
-- Loads single-file TOML themes with embedded HTML, CSS, JavaScript, and assets.
-- Caches artwork when the selected theme requests it.
-- Provides a desktop interface, system tray integration, and optional autostart.
+- **MPRIS integration** — Automatically discovers and monitors media players over session D-Bus.
+- **Local HTTP service** — Serves playback state and theme pages through a loopback-only HTTP server.
+- **Live updates** — Pushes playback changes to connected browser clients over WebSockets.
+- **Custom themes** — Uses single-file TOML themes containing embedded HTML, CSS, JavaScript, and optional assets.
+- **Artwork caching** — Caches album artwork when requested by the active theme.
+- **Desktop integration** — Includes a graphical interface, system tray integration, and optional autostart.
 
-## OBS
+## OBS Browser Source
 
-Add a Browser Source with this default URL:
+Add a **Browser Source** in OBS using the following URL:
 
 ```text
 http://127.0.0.1:9005/
 ```
 
-The service listens only on the local machine. If you change its port in the
-app's Settings, copy the updated URL from the Playback page.
+The service listens only on the local machine.
 
-## Install
+If you change the HTTP port in the application settings, copy the updated URL from the Playback page.
+
+## Installation
 
 ### Nix
 
-Install into your user profile:
+nowplaying provides a Nix flake supporting `x86_64-linux` and `aarch64-linux`.
 
-```sh
+**Install into your user profile:**
+
+```bash
 nix profile install github:Jade-Switch/nowplaying
 ```
 
-Or run without installing:
+**Run without installing:**
 
-```sh
+```bash
 nix run github:Jade-Switch/nowplaying
 ```
 
-The flake supports `x86_64-linux` and `aarch64-linux`.
+#### NixOS
 
-For NixOS, add the flake as an input:
+Add nowplaying as an input in your system's `flake.nix`:
 
 ```nix
-inputs.nowplaying = {
-  url = "github:Jade-Switch/nowplaying";
-  inputs.nixpkgs.follows = "nixpkgs";
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+
+    nowplaying = {
+      url = "github:Jade-Switch/nowplaying";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+}
+```
+
+Then expose the flake inputs to your NixOS modules using `specialArgs`:
+
+```nix
+outputs = inputs@{ nixpkgs, ... }: {
+  nixosConfigurations.snowflake = nixpkgs.lib.nixosSystem {
+    system = "x86_64-linux";
+
+    specialArgs = {
+      inherit inputs;
+    };
+
+    modules = [
+      ./configuration.nix
+    ];
+  };
 };
 ```
 
-Then add `inputs.nowplaying.packages.${pkgs.system}.default` to
-`environment.systemPackages` and rebuild your system.
+In your `configuration.nix`, accept `inputs` and add nowplaying to `environment.systemPackages`:
+
+```nix
+{ config, pkgs, inputs, ... }:
+
+{
+  environment.systemPackages = [
+    inputs.nowplaying.packages.${pkgs.system}.default
+  ];
+}
+```
+
+Rebuild your system:
+
+```bash
+sudo nixos-rebuild switch --flake .#snowflake
+```
 
 ### Flatpak
 
-Tagged GitHub releases include a `.flatpak` bundle. Install a downloaded bundle
-with:
+Tagged GitHub releases include a downloadable `.flatpak` bundle.
 
-```sh
+Install a downloaded bundle with:
+
+```bash
 flatpak install --user ./nowplaying-VERSION.flatpak
 ```
 
-The bundle uses the Freedesktop 25.08 runtime from Flathub. Flatpak updates are
-installed through a new release bundle; automatic update delivery is not
-configured by this repository.
+The bundle uses the Freedesktop 25.08 runtime from Flathub.
+
+Flatpak updates are distributed through new release bundles. Automatic update delivery is not currently configured by this repository.
 
 ## Themes
 
-Themes are TOML files containing their own HTML, CSS, JavaScript, and optional
-embedded assets. Import a file or paste its contents on the Themes page. The
-app validates the theme before storing it and does not overwrite another theme
-with the same ID.
+Themes are self-contained TOML files containing their own HTML, CSS, JavaScript, and optional embedded assets.
 
-See [the theme format and browser API](docs/theme-format.md) for the schema,
-playback data, and a working example.
+You can:
 
-## Build from source
+- Import an existing `.toml` theme file.
+- Paste theme configuration directly into the importer.
+- Validate themes before importing them.
 
-Requires Rust 1.88 or newer, the Linux GUI development libraries for Iced, and a
-session D-Bus for desktop integration.
+Imported themes are stored by the application without modifying the original files. Existing themes with the same ID are protected against accidental overwrites.
 
-```sh
+For the complete theme specification, browser API documentation, and a working example, see:
+
+**[Theme Format & Browser API](https://github.com/Jade-Switch/nowplaying/blob/main/docs/theme-format.md)**
+
+## Build from Source
+
+### Requirements
+
+- Rust 1.88 or newer.
+- Linux GUI development libraries required by Iced.
+- A running session D-Bus for desktop integration.
+
+### Clone the repository
+
+```bash
 git clone https://github.com/Jade-Switch/nowplaying.git
 cd nowplaying
+```
+
+### Build
+
+```bash
 cargo build --release --locked
+```
+
+### Run tests
+
+```bash
 cargo test --workspace --locked
 ```
 
-Run the development build with `cargo run`. The release binary is
-`target/release/nowplaying`.
+### Run locally
+
+For development:
+
+```bash
+cargo run
+```
+
+The optimized release binary is generated at:
+
+```text
+target/release/nowplaying
+```
 
 ## License
 
-The repository does not currently include a license file.
+The repository does not currently include a license file. All rights are reserved by default unless a license is added.

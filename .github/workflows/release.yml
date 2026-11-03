@@ -50,8 +50,8 @@ jobs:
           sudo apt-get install --yes flatpak flatpak-builder
       - name: Install Freedesktop SDK and Rust extension
         run: |
-          flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --system --noninteractive flathub \
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub \
             org.freedesktop.Platform//25.08 \
             org.freedesktop.Sdk//25.08 \
             org.freedesktop.Sdk.Extension.rust-stable//25.08
@@ -61,7 +61,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          flatpak-builder --force-clean --repo="$RUNNER_TEMP/flatpak-repo" \
+          flatpak-builder --user --force-clean --repo="$RUNNER_TEMP/flatpak-repo" \
             "$RUNNER_TEMP/flatpak-build" \
             packaging/flatpak/io.github.Jade-Switch.nowplaying.yml
           flatpak build-bundle "$RUNNER_TEMP/flatpak-repo" \
@@ -91,7 +91,7 @@ jobs:
       - name: Create and verify checksums
         working-directory: release-assets
         run: |
-          sha256sum *.flatpak > SHA256SUMS
+          sha256sum ./*.flatpak > SHA256SUMS
           sha256sum --check SHA256SUMS
       - name: Create draft release, attach packages, then publish
         env:
