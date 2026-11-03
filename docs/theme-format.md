@@ -4,12 +4,15 @@ Each theme is a single `.toml` file containing a manifest and its HTML, CSS,
 JavaScript, and optional embedded assets. The theme's HTML and CSS create the
 display; the runtime supplies playback data through `window.NowPlaying`.
 
+For a copy-paste prompt aimed at AI coding agents, see the
+[theme agent guide](theme-agent-guide.md).
+
 ## Small working theme
 
 This minimal theme displays the current title, artists, and playback status.
 Save it as `sample-player.toml` and import it from the Themes page.
 
-```toml
+
 [theme]
 id = "sample-player"
 name = "Sample Player"
@@ -44,7 +47,7 @@ window.NowPlaying.subscribe((state) => {
   document.querySelector("#artist").textContent = metadata.artists.join(" · ");
 });
 '''
-```
+
 
 TOML strings delimited by three single quotes make it convenient to include
 HTML, CSS, and JavaScript without escaping their quotes. The runtime inserts

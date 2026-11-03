@@ -1381,83 +1381,6 @@ async fn pick_theme_file() -> Option<PathBuf> {
         .map(|file| file.path().to_owned())
 }
 
-#[cfg(test)]
-mod import_picker_tests {
-    use super::{begin_file_picker, finish_file_picker};
-
-    #[test]
-    fn only_one_picker_starts_for_repeated_clicks() {
-        let (mut active, mut picker_session) = (false, None);
-        assert!(begin_file_picker(&mut active, &mut picker_session, true, 7));
-        assert!(!begin_file_picker(
-            &mut active,
-            &mut picker_session,
-            true,
-            7
-        ));
-        assert!(active);
-        assert_eq!(picker_session, Some(7));
-    }
-
-    #[test]
-    fn completion_releases_picker_after_selection_or_cancellation() {
-        for _selection in [Some("theme.toml"), None] {
-            let (mut active, mut picker_session) = (false, None);
-            assert!(begin_file_picker(&mut active, &mut picker_session, true, 3));
-            assert!(finish_file_picker(
-                &mut active,
-                &mut picker_session,
-                3,
-                true,
-                3
-            ));
-            assert!(!active);
-            assert_eq!(picker_session, None);
-        }
-    }
-
-    #[test]
-    fn stale_result_releases_picker_but_cannot_update_reopened_importer() {
-        let (mut active, mut picker_session) = (false, None);
-        assert!(begin_file_picker(
-            &mut active,
-            &mut picker_session,
-            true,
-            10
-        ));
-        // Cancel and reopen the importer while its picker is still running.
-        assert!(!finish_file_picker(
-            &mut active,
-            &mut picker_session,
-            10,
-            true,
-            11
-        ));
-        assert!(!active);
-        assert_eq!(picker_session, None);
-        assert!(begin_file_picker(
-            &mut active,
-            &mut picker_session,
-            true,
-            11
-        ));
-    }
-
-    #[test]
-    fn picker_completion_after_close_releases_lock() {
-        let (mut active, mut picker_session) = (false, None);
-        assert!(begin_file_picker(&mut active, &mut picker_session, true, 4));
-        assert!(!finish_file_picker(
-            &mut active,
-            &mut picker_session,
-            4,
-            false,
-            4
-        ));
-        assert!(!active);
-    }
-}
-
 fn is_theme_path(path: &std::path::Path) -> bool {
     path.extension()
         .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))
@@ -1684,5 +1607,82 @@ fn window_settings() -> window::Settings {
             ..window::settings::PlatformSpecific::default()
         },
         ..window::Settings::default()
+    }
+}
+
+#[cfg(test)]
+mod import_picker_tests {
+    use super::{begin_file_picker, finish_file_picker};
+
+    #[test]
+    fn only_one_picker_starts_for_repeated_clicks() {
+        let (mut active, mut picker_session) = (false, None);
+        assert!(begin_file_picker(&mut active, &mut picker_session, true, 7));
+        assert!(!begin_file_picker(
+            &mut active,
+            &mut picker_session,
+            true,
+            7
+        ));
+        assert!(active);
+        assert_eq!(picker_session, Some(7));
+    }
+
+    #[test]
+    fn completion_releases_picker_after_selection_or_cancellation() {
+        for _selection in [Some("theme.toml"), None] {
+            let (mut active, mut picker_session) = (false, None);
+            assert!(begin_file_picker(&mut active, &mut picker_session, true, 3));
+            assert!(finish_file_picker(
+                &mut active,
+                &mut picker_session,
+                3,
+                true,
+                3
+            ));
+            assert!(!active);
+            assert_eq!(picker_session, None);
+        }
+    }
+
+    #[test]
+    fn stale_result_releases_picker_but_cannot_update_reopened_importer() {
+        let (mut active, mut picker_session) = (false, None);
+        assert!(begin_file_picker(
+            &mut active,
+            &mut picker_session,
+            true,
+            10
+        ));
+        // Cancel and reopen the importer while its picker is still running.
+        assert!(!finish_file_picker(
+            &mut active,
+            &mut picker_session,
+            10,
+            true,
+            11
+        ));
+        assert!(!active);
+        assert_eq!(picker_session, None);
+        assert!(begin_file_picker(
+            &mut active,
+            &mut picker_session,
+            true,
+            11
+        ));
+    }
+
+    #[test]
+    fn picker_completion_after_close_releases_lock() {
+        let (mut active, mut picker_session) = (false, None);
+        assert!(begin_file_picker(&mut active, &mut picker_session, true, 4));
+        assert!(!finish_file_picker(
+            &mut active,
+            &mut picker_session,
+            4,
+            false,
+            4
+        ));
+        assert!(!active);
     }
 }

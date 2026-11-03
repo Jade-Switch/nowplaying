@@ -366,46 +366,6 @@ async fn install_bundled_theme(
     Ok(())
 }
 
-#[cfg(test)]
-mod bundled_theme_tests {
-    use std::{
-        fs,
-        sync::atomic::{AtomicU64, Ordering},
-    };
-
-    use super::install_bundled_themes;
-
-    static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
-
-    #[tokio::test]
-    async fn installs_all_bundled_themes_without_replacing_existing_files() {
-        let directory = std::env::temp_dir().join(format!(
-            "nowplaying-bundled-themes-{}-{}",
-            std::process::id(),
-            NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir_all(&directory).unwrap();
-        let quiet_theme = directory.join("quiet-mocha.toml");
-        fs::write(&quiet_theme, "user-owned theme contents").unwrap();
-
-        install_bundled_themes(&directory).await.unwrap();
-
-        for filename in [
-            "catppuccin-mocha.toml",
-            "quiet-mocha.toml",
-            "starfall.toml",
-            "spectral-tide.toml",
-        ] {
-            assert!(directory.join(filename).is_file(), "missing {filename}");
-        }
-        assert_eq!(
-            fs::read_to_string(quiet_theme).unwrap(),
-            "user-owned theme contents"
-        );
-        fs::remove_dir_all(directory).unwrap();
-    }
-}
-
 async fn restore_startup_theme(themes: &ThemeManager) -> Result<(), Box<dyn Error>> {
     match themes.restore_selection().await {
         Ok(Some(theme)) => {
@@ -451,5 +411,45 @@ async fn configured_server_address(settings_path: &std::path::Path) -> SocketAdd
     match port {
         Some(port) => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
         None => default,
+    }
+}
+
+#[cfg(test)]
+mod bundled_theme_tests {
+    use std::{
+        fs,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    use super::install_bundled_themes;
+
+    static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+
+    #[tokio::test]
+    async fn installs_all_bundled_themes_without_replacing_existing_files() {
+        let directory = std::env::temp_dir().join(format!(
+            "nowplaying-bundled-themes-{}-{}",
+            std::process::id(),
+            NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let quiet_theme = directory.join("quiet-mocha.toml");
+        fs::write(&quiet_theme, "user-owned theme contents").unwrap();
+
+        install_bundled_themes(&directory).await.unwrap();
+
+        for filename in [
+            "catppuccin-mocha.toml",
+            "quiet-mocha.toml",
+            "starfall.toml",
+            "spectral-tide.toml",
+        ] {
+            assert!(directory.join(filename).is_file(), "missing {filename}");
+        }
+        assert_eq!(
+            fs::read_to_string(quiet_theme).unwrap(),
+            "user-owned theme contents"
+        );
+        fs::remove_dir_all(directory).unwrap();
     }
 }
