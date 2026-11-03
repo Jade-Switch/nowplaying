@@ -1,147 +1,148 @@
-# Theme file format, version 1
+# Themes and the browser playback API
 
-Each theme is one `.toml` file. There are no sidecar directories or archives.
-The runtime reads the embedded HTML body, CSS, JavaScript and explicitly typed
-Base64 assets from that file. There is no template-variable substitution;
-dynamic playback data comes from the documented [JavaScript API](playback.md).
+Each theme is a single `.toml` file containing a manifest and its HTML, CSS,
+JavaScript, and optional embedded assets. The theme's HTML and CSS create the
+display; the runtime supplies playback data through `window.NowPlaying`.
 
-## Example
+## Small working theme
 
+This minimal theme displays the current title, artists, and playback status.
+Save it as `sample-player.toml` and import it from the Themes page.
+
+```toml
 [theme]
 id = "sample-player"
 name = "Sample Player"
 version = "1.0.0"
 format_version = 1
-author = "Theme Author"
-description = "A compact player display"
 
 [theme.compatibility]
 minimum_runtime = "0.1.0"
 
-[canvas]
-width = 640
-height = 180
-background = "transparent"
-
-[layout]
-direction = "horizontal" # horizontal, vertical, or freeform
-alignment = "center"    # start, center, or end
-spacing = 12
-padding = 8
-
-[artwork]
-enabled = true
-position = "left"       # hidden, left, right, top, or bottom
-width = 144
-height = 144
-fit = "cover"
-rendering = "auto"
-
-[metadata]
-show_title = true
-show_artist = true
-show_album = false
-alignment = "start"
-
-[progress]
-enabled = true
-position = "bottom"
-height = 4
-
-[animations]
-enabled = true
-reduced_motion_support = true
-track_change = "crossfade"
-track_change_duration_ms = 450
-
-[colors]
-background = "transparent"
-text = "#cdd6f4"
-muted = "#a6adc8"
-accent = "#cba6f7"
-
 [html]
-template = """
+template = '''
 <main class="player">
-  <img id="cover" alt="">
-  <section><h1 id="title"></h1><p id="artist"></p></section>
+  <p id="status">Waiting for music</p>
+  <h1 id="title">Nothing playing</h1>
+  <p id="artist"></p>
 </main>
-"""
+'''
 
 [css]
-stylesheet = """
-/* This CSS and the theme's HTML decide the complete visual presentation. */
-"""
+stylesheet = '''
+body { margin: 0; color: #eee; background: #171625; font: 16px sans-serif; }
+.player { padding: 24px; }
+h1 { margin: 8px 0; }
+'''
 
 [javascript]
-source = """
-// Subscribe to window.NowPlaying when the Phase 4 runtime API is available.
-"""
+source = '''
+window.NowPlaying.subscribe((state) => {
+  const metadata = state.metadata;
+  document.querySelector("#status").textContent = state.status;
+  document.querySelector("#title").textContent = metadata.title || "Nothing playing";
+  document.querySelector("#artist").textContent = metadata.artists.join(" · ");
+});
+'''
+```
 
-[assets.brand_mark]
-mime_type = "image/gif"
-data = "R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+TOML strings delimited by three single quotes make it convenient to include
+HTML, CSS, and JavaScript without escaping their quotes. The runtime inserts
+these strings into the page; it does not substitute variables into the HTML.
 
+## Playback data
 
+`NowPlaying.subscribe(callback)` calls the callback with the current snapshot
+when it becomes available and again whenever playback changes. It returns a
+function that stops that subscription. The snapshot is the complete current
+state, so render from it instead of trying to reconstruct state from event
+names.
 
-## Schema and defaults
+The snapshot has this shape:
 
-`[theme]` and `[html]` are required. Theme IDs are 1–64 lowercase ASCII letters,
-digits or hyphens, starting with a letter. `version` and
-`compatibility.minimum_runtime` use semantic versions. The loader accepts only
-the exact `format_version` it implements; a future incompatible format must
-increment this value.
+```json
+{
+  "connected": true,
+  "player": { "identity": "Example Player" },
+  "status": "playing",
+  "metadata": {
+    "title": "Example Track",
+    "artists": ["Example Artist"],
+    "album": "Example Album",
+    "trackId": "/org/mpris/MediaPlayer2/Track/1",
+    "artworkUrl": "/artwork/opaque-cache-id"
+  },
+  "positionMs": 12000,
+  "durationMs": 185000,
+  "shuffle": false,
+  "repeat": "none"
+}
+```
 
-Canvas defaults to 640 × 180 with a transparent background. Layout defaults to
-freeform, centered, 12 px spacing and 8 px padding. Artwork defaults to hidden;
-metadata defaults to title and artist visible, album hidden; progress defaults
-to disabled; reduced-motion support defaults to enabled. CSS and JavaScript
-default to empty strings, colors to transparent/white/gray/mauve, and embedded
-assets to an empty table. Unknown keys are rejected so spelling errors do not
-silently change the result.
+Fields such as `player`, `title`, `album`, `trackId`, `artworkUrl`,
+`durationMs`, and `shuffle` can be `null`. `artists` is always an array;
+`positionMs` is an integer in milliseconds. Status is `playing`, `paused`,
+`stopped`, or `unknown`. Repeat is `none`, `track`, `playlist`, or `unknown`.
+The player is `null` when disconnected. Artwork is served locally as
+`artworkUrl`; themes do not receive the original media URI.
 
-Canvas, layout, artwork, metadata, progress, animation and color tables provide
-small declarative hints for common properties. They do not impose a component
-tree or constrain the custom markup. A theme can ignore these hints and use
-arbitrary HTML, CSS and browser JavaScript to create a different composition.
+Use `NowPlaying.getState()` to read the latest snapshot (or `null` before one
+has arrived). `NowPlaying.on(kind, callback)` subscribes to one event kind;
+the callback receives `(snapshot, event)`. Both subscription methods return an
+unsubscribe function. Events include `trackChanged`, `playbackStarted`,
+`playbackPaused`, `playbackStopped`, `positionUpdated`, and `metadataUpdated`.
+The `event.kind` is also passed as the second argument to `subscribe`.
+
+The browser runtime fetches the initial state and then receives live updates
+over a WebSocket, reconnecting if it disconnects. Themes normally only need
+`NowPlaying.subscribe`; they do not need to connect to either endpoint
+themselves. The HTTP state endpoint is `/api/state` and the WebSocket endpoint
+is `/api/ws`.
+
+## File fields
+
+Required fields are `[theme]`, `[theme.compatibility]`, and `[html]`.
+`theme.id` uses 1–64 lowercase letters, digits, or hyphens and starts with a
+letter. `version` and `minimum_runtime` are semantic versions.
+`format_version` must be `1` for this format. Optional manifest fields are
+`author` and `description`.
+
+`[css].stylesheet` and `[javascript].source` default to empty strings. Optional
+tables `[canvas]`, `[layout]`, `[artwork]`, `[metadata]`, `[progress]`,
+`[animations]`, and `[colors]` provide defaults and hints for common
+properties. They do not generate markup or control a theme's layout: the
+shipped themes implement their presentation in HTML and CSS and use JavaScript
+to update it. Start with the minimal example above; add these tables only when
+they are useful to document your theme's choices.
 
 ## Embedded assets
 
-`[assets.<id>]` entries use URL-safe IDs (lowercase letters, digits, hyphens or
-underscores), require an explicit MIME type, and store bytes in standard padded
-Base64. IDs become resource names at `/theme/assets/<id>` in the local browser
-runtime. Assets can be used from CSS or JavaScript without external folders.
+Optional `[assets.<id>]` entries embed Base64-encoded data in the theme file:
 
-The loader limits a TOML file to 8 MiB, each decoded asset to 4 MiB, the decoded
-asset total to 8 MiB, and the asset count to 64. HTML, CSS and JavaScript also
-have individual size limits. These bounds are checked before large asset
-allocations wherever possible.
+```toml
+[assets.logo]
+mime_type = "image/png"
+data = "<standard padded Base64 data>"
+```
 
-## Loading, import and switching
+Asset IDs use lowercase letters, digits, hyphens, or underscores. Each asset
+needs an explicit MIME type. Its URL is `/theme/assets/<id>`; use that URL in
+HTML, CSS, or JavaScript. Themes can also draw visuals directly in HTML, CSS,
+or inline SVG, as the shipped Starfall theme does.
 
-The loader discovers `.toml` files, validates required fields, enum values,
-canvas/layout limits, Base64, MIME types, IDs and runtime compatibility. Invalid
-files are reported individually and do not prevent other themes from loading.
-Duplicate IDs are reported deterministically; the lexically first file wins.
+## Importing and safety
 
-The GUI's Import action validates the complete theme before storing it as
-`<id>.toml` in the application's per-user themes directory, then removes the
-selected source file so importing acts as a move. If the source cannot be
-removed, the theme remains imported and the GUI reports that the original file
-is still present. The default themes directory is
-`$XDG_DATA_HOME/now-playing-studio/themes` (usually
-`~/.local/share/now-playing-studio/themes`). Existing themes are never
-overwritten. The GUI's Edit action opens that stored file with the system's
-default application for text files. Deleting a theme asks for confirmation and
-is blocked while that theme is active. Export copies one validated TOML file
-and also refuses to overwrite a destination. Selecting a theme persists its ID
-in the application settings TOML while preserving unrelated settings. A failed
-load, selection or settings write leaves the currently active theme intact.
+Theme files must be plain TOML. Markdown code fences such as ` ```toml ` are
+documentation formatting and must not be included in a theme file.
 
-## Trust and browser boundary
+Import validates the complete file and stores it in
+`~/.local/share/now-playing-studio/themes` (or the XDG data directory). Import
+moves the selected file. Export copies a theme file; Edit opens the installed
+file in the default text editor. The app does not overwrite an existing theme
+with the same ID. Invalid themes are reported without preventing other themes
+from loading.
 
-Theme HTML and JavaScript are untrusted browser content. They receive no native
-command or filesystem bridge. The runtime will expose only the documented
-playback API and embedded resources, with a restrictive Content Security Policy
-where practical. Loopback binding does not prevent browser JavaScript from
-making other network requests; import themes only from authors you trust.
+Theme HTML and JavaScript run as browser content. They have no native command
+or filesystem bridge. The runtime applies a Content Security Policy, but
+browser JavaScript can still make network requests. Import themes only from
+authors you trust.

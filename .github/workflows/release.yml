@@ -1,0 +1,130 @@
+name: Release packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  nix:
+    name: Build and cache Nix package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check Cachix write token
+        if: vars.CACHIX_CACHE_NAME != ''
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: test -n "$CACHIX_AUTH_TOKEN" || (echo "::error::Set the CACHIX_AUTH_TOKEN Actions secret." && exit 1)
+      - name: Configure Cachix when the repository cache is configured
+        if: vars.CACHIX_CACHE_NAME != ''
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: ${{ vars.CACHIX_CACHE_NAME }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Report skipped Cachix setup
+        if: vars.CACHIX_CACHE_NAME == ''
+        run: echo "::warning::Set the CACHIX_CACHE_NAME Actions variable and CACHIX_AUTH_TOKEN secret to publish Nix builds to Cachix."
+      - name: Check tag matches package version
+        run: python3 packaging/validate-release-version.py --tag "$GITHUB_REF_NAME"
+      - run: nix build --accept-flake-config --no-link .#packages.x86_64-linux.now-playing-studio
+
+  flatpak:
+    name: Build Flatpak bundle
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Flatpak build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes flatpak flatpak-builder
+      - name: Install Freedesktop SDK and Rust extension
+        run: |
+          flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --system --noninteractive flathub \
+            org.freedesktop.Platform//25.08 \
+            org.freedesktop.Sdk//25.08 \
+            org.freedesktop.Sdk.Extension.rust-stable//25.08
+      - name: Generate offline Cargo sources from Cargo.lock
+        run: python3 packaging/flatpak/generate-cargo-sources.py
+      - name: Build and bundle
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          flatpak-builder --force-clean --repo="$RUNNER_TEMP/flatpak-repo" \
+            "$RUNNER_TEMP/flatpak-build" \
+            packaging/flatpak/io.github.Jade-Switch.nowplaying.yml
+          flatpak build-bundle "$RUNNER_TEMP/flatpak-repo" \
+            "$RUNNER_TEMP/Now-Playing-Studio-${RELEASE_TAG}.flatpak" \
+            io.github.Jade-Switch.nowplaying stable
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flatpak-bundle
+          path: ${{ runner.temp }}/Now-Playing-Studio-${{ github.ref_name }}.flatpak
+          if-no-files-found: error
+          retention-days: 7
+
+  snap:
+    name: Build Snap package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Snapcraft
+        run: sudo snap install snapcraft --classic --channel=latest/stable
+      - name: Check version metadata
+        run: python3 packaging/validate-release-version.py --tag "$GITHUB_REF_NAME"
+      - name: Build Snap package
+        working-directory: packaging/snap
+        run: snapcraft pack --destructive-mode
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: snap-package
+          path: packaging/snap/*.snap
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-24.04
+    needs: [nix, flatpak, snap]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: flatpak-bundle
+          path: release-assets
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: snap-package
+          path: release-assets
+      - name: Create and verify checksums
+        working-directory: release-assets
+        run: |
+          sha256sum *.flatpak *.snap > SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - name: Create draft release, attach packages, then publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --draft --verify-tag \
+              --title "$RELEASE_TAG" --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" release-assets/*.flatpak \
+            release-assets/*.snap release-assets/SHA256SUMS --clobber
+          gh release edit "$RELEASE_TAG" --draft=false

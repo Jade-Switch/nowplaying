@@ -26,7 +26,7 @@ use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 const DEFAULT_THEME_ID: &str = "catppuccin-mocha";
-const DEFAULT_SERVER_PORT: u16 = 8765;
+const DEFAULT_SERVER_PORT: u16 = 9005;
 
 struct AppPaths {
     config: PathBuf,

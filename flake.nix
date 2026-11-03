@@ -1,6 +1,13 @@
 {
   description = "Now Playing Studio desktop application and OBS source runtime";
 
+  nixConfig = {
+    extra-substituters = [ "https://nowplaying.cachix.org" ];
+    extra-trusted-public-keys = [
+      "nowplaying.cachix.org-1:InttALbGwOhUqNj6k1qBYVwuS/xsAxoGI0gRMCy54eI="
+    ];
+  };
+
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }:
@@ -11,10 +18,11 @@
       packages = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
+          version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
           runtimeLibraries = with pkgs; [ libxkbcommon wayland libGL ];
           app = pkgs.rustPlatform.buildRustPackage {
             pname = "now-playing-studio";
-            version = "0.1.0";
+            inherit version;
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
 

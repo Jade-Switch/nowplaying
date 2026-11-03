@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Now Playing Studio
+Comment=MPRIS player monitor and OBS browser source
+Exec=now-playing-studio
+Icon=io.github.Jade-Switch.nowplaying
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+StartupNotify=true

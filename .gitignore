@@ -2,4 +2,9 @@
 /result
 *.swp
 *.tmp
+# Local environment files may contain credentials.
+.env
+!.env.example
 *.env
+packaging/flatpak/cargo-sources.json
+packaging/flatpak/.flatpak-builder/

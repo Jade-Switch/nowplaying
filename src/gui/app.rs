@@ -195,7 +195,7 @@ impl App {
         let server_port_input = url::Url::parse(&service_url)
             .ok()
             .and_then(|url| url.port())
-            .unwrap_or(8765)
+            .unwrap_or(9005)
             .to_string();
         let start_on_startup =
             autostart_file_path(&settings_path).is_some_and(|path| path.exists());
@@ -695,7 +695,10 @@ impl App {
         for (id, theme) in &self.catalog.themes {
             cards = cards.push(self.theme_card(id, theme));
         }
-        if self.catalog.themes.is_empty() {
+        for issue in &self.catalog.issues {
+            cards = cards.push(self.invalid_theme_card(issue));
+        }
+        if self.catalog.themes.is_empty() && self.catalog.issues.is_empty() {
             cards = cards.push(
                 container(text("No valid themes found.").color(design::TEXT_SECONDARY))
                     .padding(design::spacing::XL)
@@ -739,7 +742,7 @@ impl App {
                         .size(design::typography::CAPTION)
                         .color(design::TEXT_SECONDARY),
                     row![
-                        text_input("8765", &self.server_port_input)
+                        text_input("9005", &self.server_port_input)
                             .on_input(Message::ServerPortChanged)
                             .width(Length::Fixed(140.0)),
                         button(text("Save and restart"))
@@ -884,6 +887,29 @@ impl App {
                     .color(design::TEXT_SECONDARY),
             ]
             .spacing(design::spacing::MD),
+        )
+        .padding(design::spacing::LG)
+        .width(Length::Fill)
+        .style(|_| design::surface())
+        .into()
+    }
+
+    fn invalid_theme_card<'a>(&self, issue: &'a crate::theme::ThemeIssue) -> Element<'a, Message> {
+        let filename = issue
+            .path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("Unknown theme file");
+        container(
+            column![
+                text(filename)
+                    .size(design::typography::HEADING)
+                    .color(design::TEXT_SECONDARY),
+                text(format!("Invalid theme: {}", issue.message))
+                    .size(design::typography::CAPTION)
+                    .color(design::TEXT_SECONDARY),
+            ]
+            .spacing(design::spacing::SM),
         )
         .padding(design::spacing::LG)
         .width(Length::Fill)
@@ -1048,11 +1074,19 @@ fn open_system_path(path: PathBuf) -> Task<Message> {
     Task::perform(
         async move {
             tokio::task::spawn_blocking(move || {
-                Command::new("xdg-open")
+                let output = Command::new("xdg-open")
                     .arg(&path)
-                    .spawn()
-                    .map(|_| path)
-                    .map_err(|error| error.to_string())
+                    .output()
+                    .map_err(|error| format!("could not start xdg-open: {error}"))?;
+                if output.status.success() {
+                    Ok(path)
+                } else {
+                    Err(format!(
+                        "xdg-open exited with {}: {}",
+                        output.status,
+                        String::from_utf8_lossy(&output.stderr).trim()
+                    ))
+                }
             })
             .await
             .map_err(|error| error.to_string())?
@@ -1204,6 +1238,11 @@ fn window_settings() -> window::Settings {
         min_size: Some(iced::Size::new(800.0, 560.0)),
         position: window::Position::Centered,
         exit_on_close_request: false,
+        platform_specific: window::settings::PlatformSpecific {
+            application_id: std::env::var("NOW_PLAYING_STUDIO_APP_ID")
+                .unwrap_or_else(|_| "now-playing-studio".to_owned()),
+            ..window::settings::PlatformSpecific::default()
+        },
         ..window::Settings::default()
     }
 }

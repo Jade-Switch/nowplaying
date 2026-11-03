@@ -16,6 +16,7 @@ The application is designed to keep the runtime relatively small and predictable
 - **Artwork handling** — retrieve and cache album artwork for display.
 - **Desktop interface** — manage installed themes, select playback sources, and access runtime settings.
 - **System tray integration** — keep the runtime running without leaving the main window open.
+- **Linux packages** — Nix, Flatpak, and Snap builds are produced by GitHub Actions.
 
 ## Themes
 
@@ -27,7 +28,8 @@ This makes themes easy to share, back up, and install without modifying the appl
 
 The runtime exposes playback information through a documented JavaScript API, allowing themes to handle their own presentation and behaviour.
 
-See the theme format and playback API documentation for details.
+See [Themes and the browser playback API](docs/theme-format.md) for the file
+format, playback data, and a working example.
 
 ## OBS
 
@@ -35,7 +37,7 @@ Now Playing Studio provides a local endpoint that can be added to OBS as a Brows
 
 Default address:
 
-`http://127.0.0.1:8765/`
+`http://127.0.0.1:9005/`
 
 The displayed content is controlled by the currently selected theme. The local runtime handles playback information and updates independently of the OBS browser window.
 
@@ -96,8 +98,45 @@ your profile:
 nix run github:Jade-Switch/nowplaying
 ```
 
-On NixOS, configure the KDE desktop portal for the Import Theme file picker.
-See the [NixOS installation guide](docs/nixos.md) for setup details.
+On NixOS with KDE Plasma, enable the desktop portal backend for the Import
+Theme file picker:
+
+```nix
+xdg.portal = {
+  enable = true;
+  extraPortals = [ pkgs.kdePackages.xdg-desktop-portal-kde ];
+};
+```
+
+Rebuild and log in to the graphical session again after enabling it. The app
+expects a logged-in desktop session with session D-Bus. KDE also supplies the
+StatusNotifier watcher used for the tray icon. MPRIS players must be running in
+the same session. Without a tray watcher, closing the app window exits it.
+
+To include the app in a NixOS flake configuration, add it as an input:
+
+```nix
+inputs.now-playing-studio = {
+  url = "github:Jade-Switch/nowplaying";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+```
+
+Then add it to your package list:
+
+```nix
+environment.systemPackages = [
+  inputs.now-playing-studio.packages.${pkgs.system}.default
+];
+```
+
+Rebuild with `sudo nixos-rebuild switch --flake /etc/nixos#<hostname>`. The
+package includes a desktop launcher and icon. Its Settings startup checkbox
+manages an XDG autostart entry in `~/.config/autostart`.
+
+The OBS service listens on loopback (default `127.0.0.1:9005`) and is intended
+for OBS on the same machine. Copy the URL from the Playback page if you changed
+the port in Settings.
 
 ## Project structure
 
@@ -107,10 +146,8 @@ The intention is to keep these responsibilities separated without introducing un
 
 ## Documentation
 
-- [Theme file format](docs/theme-format.md)
-- [Playback, browser API, server, and artwork](docs/playback.md)
-- [Architecture](docs/architecture.md)
-- [NixOS installation and packaging](docs/nixos.md)
+- [Themes and the browser playback API](docs/theme-format.md)
+- [Packaging and automated releases](docs/packaging.md)
 
 ## License
 
