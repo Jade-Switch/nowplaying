@@ -973,6 +973,7 @@ impl App {
                 .style(design::secondary_button)
                 .on_press(Message::RefreshThemes),
         ]
+        .spacing(design::spacing::SM)
         .align_y(Alignment::Center);
 
         let mut cards = column!().spacing(design::spacing::MD);
