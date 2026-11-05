@@ -26,7 +26,7 @@ use tokio::io::AsyncWriteExt;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
-const DEFAULT_THEME_ID: &str = "catppuccin-mocha";
+const DEFAULT_THEME_ID: &str = "catppuccin-mocha-standard";
 const DEFAULT_SERVER_PORT: u16 = 9005;
 
 struct AppPaths {
@@ -332,12 +332,12 @@ async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
 async fn install_bundled_themes(themes_dir: &std::path::Path) -> io::Result<()> {
     for (filename, contents) in [
         (
-            "catppuccin-mocha.toml",
-            include_bytes!("../themes/catppuccin-mocha.toml").as_slice(),
+            "catppuccin-mocha-standard.toml",
+            include_bytes!("../themes/catppuccin-mocha-standard.toml").as_slice(),
         ),
         (
-            "quiet-mocha.toml",
-            include_bytes!("../themes/quiet-mocha.toml").as_slice(),
+            "catppuccin-mocha-slim.toml",
+            include_bytes!("../themes/catppuccin-mocha-slim.toml").as_slice(),
         ),
         (
             "starfall.toml",
@@ -445,16 +445,20 @@ mod bundled_theme_tests {
             NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir_all(&directory).unwrap();
-        let quiet_theme = directory.join("quiet-mocha.toml");
-        fs::write(&quiet_theme, "user-owned theme contents").unwrap();
+        let slim_theme = directory.join("catppuccin-mocha-slim.toml");
+        fs::write(&slim_theme, "user-owned theme contents").unwrap();
 
         install_bundled_themes(&directory).await.unwrap();
 
-        for filename in ["catppuccin-mocha.toml", "quiet-mocha.toml", "starfall.toml"] {
+        for filename in [
+            "catppuccin-mocha-standard.toml",
+            "catppuccin-mocha-slim.toml",
+            "starfall.toml",
+        ] {
             assert!(directory.join(filename).is_file(), "missing {filename}");
         }
         assert_eq!(
-            fs::read_to_string(quiet_theme).unwrap(),
+            fs::read_to_string(slim_theme).unwrap(),
             "user-owned theme contents"
         );
         fs::remove_dir_all(directory).unwrap();

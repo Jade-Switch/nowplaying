@@ -472,7 +472,7 @@ source = "window.ready = true;</ScRiPt><script>bad()"
     #[test]
     fn bundled_reference_theme_renders_with_its_real_embedded_content() {
         let theme = ThemeLoader::current()
-            .parse(include_bytes!("../themes/catppuccin-mocha.toml"))
+            .parse(include_bytes!("../themes/catppuccin-mocha-standard.toml"))
             .unwrap();
         let page = render_theme(&theme, "a-very-long-random-nonce_123456").unwrap();
         assert!(page.html.contains("id=\"artwork\""));

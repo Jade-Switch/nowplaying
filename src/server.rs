@@ -690,7 +690,11 @@ data = "R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
     #[tokio::test]
     async fn serves_the_bundled_reference_theme_through_the_browser_endpoint() {
         let root = TestDirectory::new();
-        let app = test_router(&root.0, include_bytes!("../themes/catppuccin-mocha.toml")).await;
+        let app = test_router(
+            &root.0,
+            include_bytes!("../themes/catppuccin-mocha-standard.toml"),
+        )
+        .await;
         let page = app
             .oneshot(Request::get("/").body(axum::body::Body::empty()).unwrap())
             .await

@@ -1491,9 +1491,9 @@ template = "<main id='player'></main>"
     #[test]
     fn bundled_reference_theme_is_valid_for_the_current_runtime() {
         let theme = loader()
-            .parse(include_bytes!("../themes/catppuccin-mocha.toml"))
+            .parse(include_bytes!("../themes/catppuccin-mocha-standard.toml"))
             .unwrap();
-        assert_eq!(theme.id(), "catppuccin-mocha");
+        assert_eq!(theme.id(), "catppuccin-mocha-standard");
         assert_eq!(theme.document.canvas.width, 800);
         assert_eq!(theme.document.canvas.height, 150);
         assert!(
@@ -1516,14 +1516,14 @@ template = "<main id='player'></main>"
     fn all_bundled_themes_parse_and_validate_for_the_current_runtime() {
         for (expected_id, source, expected_dimensions, expected_profile) in [
             (
-                "catppuccin-mocha",
-                include_bytes!("../themes/catppuccin-mocha.toml").as_slice(),
+                "catppuccin-mocha-standard",
+                include_bytes!("../themes/catppuccin-mocha-standard.toml").as_slice(),
                 (800, 150),
                 "Standard",
             ),
             (
-                "quiet-mocha",
-                include_bytes!("../themes/quiet-mocha.toml").as_slice(),
+                "catppuccin-mocha-slim",
+                include_bytes!("../themes/catppuccin-mocha-slim.toml").as_slice(),
                 (420, 64),
                 "Slim",
             ),

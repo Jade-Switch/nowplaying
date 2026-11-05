@@ -868,7 +868,6 @@ impl App {
             )
             .padding(design::spacing::SM)
             .width(Length::Fill)
-            .clip(true)
             .style(|_| design::elevated_surface()),
         ]
         .spacing(design::spacing::MD);
@@ -1042,9 +1041,12 @@ impl App {
                 .size(design::typography::BODY)
                 .color(design::STATUS_ERROR)
         });
-        let content = column![header, scrollable(cards).height(Length::Fill)]
-            .spacing(design::spacing::XL)
-            .height(Length::Fill);
+        let content = column![
+            header,
+            scrollable(cards).id("themes-list").height(Length::Fill)
+        ]
+        .spacing(design::spacing::XL)
+        .height(Length::Fill);
         container(if let Some(message) = footer {
             column![content, message].spacing(design::spacing::SM)
         } else {
