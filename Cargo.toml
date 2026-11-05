@@ -1,6 +1,6 @@
 [package]
 name = "nowplaying"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.88"
 description = "A lightweight local nowplaying runtime and theme switcher"
@@ -13,7 +13,7 @@ name = "nowplaying"
 path = "src/main.rs"
 
 [dependencies]
-axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "ws"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "ws"] }
 base64 = "0.23"
 futures-util = "0.3"
 fs2 = "0.4.3"

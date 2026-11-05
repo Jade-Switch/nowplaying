@@ -236,15 +236,19 @@ impl ArtworkCache {
         if !is_content_id(id) {
             return Err(ArtworkError::InvalidId);
         }
-        let mut state = self.state.lock().await;
-        let Some(entry) = state.entries.get_mut(id) else {
-            return Ok(None);
+        let (file, mime_type) = {
+            let mut state = self.state.lock().await;
+            let Some(entry) = state.entries.get_mut(id) else {
+                return Ok(None);
+            };
+            entry.last_used = SystemTime::now();
+            let mime_type = entry.mime_type.to_owned();
+            let file = tokio::fs::File::open(&entry.path)
+                .await
+                .map_err(ArtworkError::Io)?;
+            (file, mime_type)
         };
-        entry.last_used = SystemTime::now();
-        let mime_type = entry.mime_type.to_owned();
-        let bytes = tokio::fs::read(&entry.path)
-            .await
-            .map_err(ArtworkError::Io)?;
+        let bytes = read_limited_file_handle(file, self.config.max_artwork_bytes).await?;
         Ok(Some(ArtworkFile { mime_type, bytes }))
     }
 
@@ -345,7 +349,11 @@ impl ArtworkCache {
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(5))
             .timeout(HTTP_TIMEOUT)
-            .user_agent("nowplaying/0.1 artwork")
+            .user_agent(concat!(
+                "nowplaying/",
+                env!("CARGO_PKG_VERSION"),
+                " artwork"
+            ))
             .resolve_to_addrs(host, &addresses)
             .build()
             .map_err(ArtworkError::Download)?;
@@ -376,7 +384,13 @@ impl ArtworkCache {
         Ok(bytes)
     }
 
-    async fn acquire_source_flight(&self, key: &str) -> Option<tokio::sync::OwnedMutexGuard<()>> {
+    async fn acquire_source_flight(
+        &self,
+        key: &str,
+    ) -> Option<(
+        std::sync::Arc<SourceFlight>,
+        tokio::sync::OwnedMutexGuard<()>,
+    )> {
         let flight = {
             let mut flights = self.source_flights.lock().await;
             if let Some(flight) = flights.get(key) {
@@ -401,7 +415,8 @@ impl ArtworkCache {
                 }
             }
         }?;
-        Some(flight.gate.clone().lock_owned().await)
+        let guard = flight.gate.clone().lock_owned().await;
+        Some((flight, guard))
     }
 
     async fn cached_source(&self, source_key: &str) -> Option<ArtworkRef> {
@@ -461,8 +476,16 @@ impl ArtworkCache {
             .open(&temp_path)
             .await
             .map_err(ArtworkError::Io)?;
-        file.write_all(&bytes).await.map_err(ArtworkError::Io)?;
-        file.sync_all().await.map_err(ArtworkError::Io)?;
+        if let Err(error) = file.write_all(&bytes).await {
+            drop(file);
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            return Err(ArtworkError::Io(error));
+        }
+        if let Err(error) = file.sync_all().await {
+            drop(file);
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            return Err(ArtworkError::Io(error));
+        }
         drop(file);
         if let Err(error) = tokio::fs::rename(&temp_path, &final_path).await {
             let _ = tokio::fs::remove_file(&temp_path).await;
@@ -595,6 +618,13 @@ async fn read_limited_file(path: &Path, limit: usize) -> Result<Vec<u8>, Artwork
     let file = tokio::fs::File::open(path)
         .await
         .map_err(ArtworkError::Io)?;
+    read_limited_file_handle(file, limit).await
+}
+
+async fn read_limited_file_handle(
+    file: tokio::fs::File,
+    limit: usize,
+) -> Result<Vec<u8>, ArtworkError> {
     let mut bytes = Vec::with_capacity(limit.min(64 * 1024));
     file.take(limit as u64 + 1)
         .read_to_end(&mut bytes)

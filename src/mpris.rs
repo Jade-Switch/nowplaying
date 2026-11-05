@@ -57,8 +57,26 @@ pub struct PlaybackHandle {
 
 impl PlaybackHandle {
     pub async fn connect(selection: PlayerSelection) -> Result<Self, MprisError> {
-        let connection = Connection::session().await?;
-        Ok(Self::start(connection, selection).await)
+        let (state_tx, state) = watch::channel(PlaybackSnapshot::default());
+        let (players_tx, players) = watch::channel(Vec::new());
+        let (events, _) = broadcast::channel(EVENT_BUFFER);
+        let (selection_tx, selection_rx) = watch::channel(selection);
+        let (shutdown, shutdown_rx) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(run_session_monitor(
+            state_tx,
+            players_tx,
+            events.clone(),
+            selection_rx,
+            shutdown_rx,
+        ));
+        Ok(Self {
+            state,
+            players,
+            events,
+            selection: selection_tx,
+            shutdown: Some(shutdown),
+            task,
+        })
     }
 
     /// Start against an existing bus connection. This is also useful for
@@ -69,14 +87,19 @@ impl PlaybackHandle {
         let (events, _) = broadcast::channel(EVENT_BUFFER);
         let (selection, selection_rx) = watch::channel(initial_selection);
         let (shutdown, shutdown_rx) = tokio::sync::oneshot::channel();
-        let task = tokio::spawn(run_monitor(
-            connection,
-            state_tx,
-            players_tx,
-            events.clone(),
-            selection_rx,
-            shutdown_rx,
-        ));
+        let task_events = events.clone();
+        let task = tokio::spawn(async move {
+            let mut shutdown_rx = shutdown_rx;
+            run_monitor(
+                connection,
+                state_tx,
+                players_tx,
+                task_events,
+                selection_rx,
+                &mut shutdown_rx,
+            )
+            .await;
+        });
         Self {
             state,
             players,
@@ -117,25 +140,87 @@ impl PlaybackHandle {
     }
 }
 
+async fn run_session_monitor(
+    state_tx: watch::Sender<PlaybackSnapshot>,
+    players_tx: watch::Sender<Vec<PlayerInfo>>,
+    events: broadcast::Sender<PlaybackEvent>,
+    selection_rx: watch::Receiver<PlayerSelection>,
+    mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
+) {
+    let mut retry_delay = Duration::from_secs(1);
+    let mut retrying = false;
+    loop {
+        let connection = tokio::select! {
+            _ = &mut shutdown_rx => break,
+            result = tokio::time::timeout(Duration::from_secs(5), Connection::session()) => result,
+        };
+        match connection {
+            Ok(Ok(connection)) => {
+                if retrying {
+                    tracing::info!("Session D-Bus connection recovered");
+                }
+                retrying = false;
+                retry_delay = Duration::from_secs(1);
+                run_monitor(
+                    connection,
+                    state_tx.clone(),
+                    players_tx.clone(),
+                    events.clone(),
+                    selection_rx.clone(),
+                    &mut shutdown_rx,
+                )
+                .await;
+                match shutdown_rx.try_recv() {
+                    Ok(()) | Err(tokio::sync::oneshot::error::TryRecvError::Closed) => break,
+                    Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {}
+                }
+                if !retrying {
+                    warn!(?retry_delay, "MPRIS session monitor stopped; retrying");
+                }
+                retrying = true;
+            }
+            Ok(Err(error)) if !retrying => {
+                warn!(%error, ?retry_delay, "Could not connect to session D-Bus; retrying");
+                retrying = true;
+            }
+            Ok(Err(error)) => debug!(%error, ?retry_delay, "Session D-Bus is still unavailable"),
+            Err(_) if !retrying => {
+                warn!(?retry_delay, "Session D-Bus connection timed out; retrying");
+                retrying = true;
+            }
+            Err(_) => debug!(?retry_delay, "Session D-Bus connection still times out"),
+        }
+        tokio::select! {
+            _ = &mut shutdown_rx => break,
+            _ = tokio::time::sleep(retry_delay) => {}
+        }
+        retry_delay = (retry_delay * 2).min(Duration::from_secs(30));
+    }
+    publish(&state_tx, &events, PlaybackSnapshot::default());
+    players_tx.send_replace(Vec::new());
+}
+
 async fn run_monitor(
     connection: Connection,
     state_tx: watch::Sender<PlaybackSnapshot>,
     players_tx: watch::Sender<Vec<PlayerInfo>>,
     events: broadcast::Sender<PlaybackEvent>,
     mut selection_rx: watch::Receiver<PlayerSelection>,
-    mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
+    shutdown_rx: &mut tokio::sync::oneshot::Receiver<()>,
 ) {
     let dbus = match DBusProxy::new(&connection).await {
         Ok(proxy) => proxy,
         Err(error) => {
-            warn!(%error, "Could not create D-Bus proxy");
+            warn!(%error, "Could not create D-Bus proxy; monitor will reconnect");
+            publish(&state_tx, &events, PlaybackSnapshot::default());
             return;
         }
     };
     let mut owner_changes = match dbus.receive_name_owner_changed().await {
         Ok(stream) => stream,
         Err(error) => {
-            warn!(%error, "Could not monitor D-Bus name ownership");
+            warn!(%error, "Could not monitor D-Bus name ownership; monitor will reconnect");
+            publish(&state_tx, &events, PlaybackSnapshot::default());
             return;
         }
     };
@@ -156,13 +241,16 @@ async fn run_monitor(
 
     loop {
         tokio::select! {
-            _ = &mut shutdown_rx => break,
+            _ = &mut *shutdown_rx => break,
             changed = selection_rx.changed() => {
                 if changed.is_err() { break; }
                 let players = players_tx.borrow().clone();
                 let selection = selection_rx.borrow().clone();
                 selected = resolve_selection(&connection, &players, &selection).await;
-                if let Some(task) = signal_task.take() { task.abort(); }
+                if let Some(task) = signal_task.take() {
+                    task.abort();
+                    let _ = task.await;
+                }
                 let players = players_tx.borrow().clone();
                 signal_task = make_property_watchers(&connection, &players, signal_tx.clone()).await;
                 refresh_selected(&connection, selected.as_deref(), &state_tx, &events).await;
@@ -178,7 +266,10 @@ async fn run_monitor(
                     let selection = selection_rx.borrow().clone();
                     let next = resolve_selection(&connection, &players, &selection).await;
                     selected = next;
-                    if let Some(task) = signal_task.take() { task.abort(); }
+                    if let Some(task) = signal_task.take() {
+                        task.abort();
+                        let _ = task.await;
+                    }
                     signal_task = make_property_watchers(&connection, &players, signal_tx.clone()).await;
                     refresh_selected(&connection, selected.as_deref(), &state_tx, &events).await;
                 }
@@ -204,6 +295,7 @@ async fn run_monitor(
     }
     if let Some(task) = signal_task {
         task.abort();
+        let _ = task.await;
     }
     publish(&state_tx, &events, PlaybackSnapshot::default());
 }

@@ -154,7 +154,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let restart_requested = Arc::new(AtomicBool::new(false));
     let tray_available = Arc::new(AtomicBool::new(true));
     let show_requested = Arc::new(AtomicBool::new(false));
-    let (tray_sender, mut tray_receiver) = tokio::sync::mpsc::unbounded_channel();
+    let (tray_sender, mut tray_receiver) = tokio::sync::mpsc::channel(8);
     let tray_handle = match runtime.block_on(tray::start(tray_sender, Arc::clone(&tray_available)))
     {
         Ok(handle) => {
@@ -169,7 +169,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let show_from_tray = Arc::clone(&show_requested);
     let quit_from_tray = Arc::clone(&shutdown_requested);
-    runtime.handle().spawn(async move {
+    let tray_dispatch_task = runtime.handle().spawn(async move {
         while let Some(command) = tray_receiver.recv().await {
             match command {
                 TrayCommand::Show => show_from_tray.store(true, Ordering::Relaxed),
@@ -178,7 +178,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     });
     let signal = Arc::clone(&shutdown_requested);
-    runtime.handle().spawn(async move {
+    let signal_task = runtime.handle().spawn(async move {
         if tokio::signal::ctrl_c().await.is_ok() {
             signal.store(true, Ordering::Relaxed);
         }
@@ -209,6 +209,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if let Some(tray) = tray_handle {
         runtime.block_on(tray.shutdown());
+    }
+    if let Err(error) = runtime.block_on(tray_dispatch_task) {
+        warn!(%error, "System tray command task did not stop cleanly");
+    }
+    signal_task.abort();
+    if let Err(error) = runtime.block_on(signal_task)
+        && !error.is_cancelled()
+    {
+        warn!(%error, "Shutdown signal task did not stop cleanly");
     }
     let server_result = runtime.block_on(app.server.shutdown());
     drop(app.playback_api);
@@ -284,7 +293,7 @@ async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
     let (playback_provider, playback_api) =
         match PlaybackHandle::connect(PlayerSelection::Automatic).await {
             Ok(provider) => {
-                info!("MPRIS playback monitoring started");
+                info!("MPRIS playback monitor started");
                 let api = Arc::new(PlaybackApi::start(&provider));
                 (Some(provider), api)
             }

@@ -97,11 +97,13 @@ Events include `snapshot`, `playerConnected`, `playerDisconnected`,
 `playerChanged`, `trackChanged`, `playbackStarted`, `playbackPaused`,
 `playbackStopped`, `positionUpdated`, and `metadataUpdated`.
 
-The browser runtime fetches the initial state and then receives live updates
-over a WebSocket, reconnecting if it disconnects. Themes normally only need
-`NowPlaying.subscribe`; they do not need to connect to either endpoint
-themselves. The HTTP state endpoint is `/api/state` and the WebSocket endpoint
-is `/api/ws`.
+The browser runtime receives its initial state and live updates over a
+WebSocket, reconnecting if it disconnects. Hidden pages suspend their socket
+and reconnect when shown; closing a page releases its connection. Preview
+pages scope playback and artwork requests to the previewed theme. Themes
+normally only need `NowPlaying.subscribe`; they do not need to connect to
+either endpoint themselves. The HTTP state endpoint is `/api/state` and the
+WebSocket endpoint is `/api/ws`.
 
 ## File fields
 

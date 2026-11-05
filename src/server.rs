@@ -5,15 +5,17 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::{
     Json, Router,
     extract::{
-        Path, State,
+        Path, Query, Request, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::{HeaderMap, HeaderValue, StatusCode, header},
+    middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::get,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
+use serde::Deserialize;
 use thiserror::Error;
 use tokio::{io::AsyncReadExt, net::TcpListener, sync::oneshot, task::JoinHandle};
 use tracing::{debug, warn};
@@ -122,7 +124,44 @@ fn router(state: ServerState) -> Router {
         .route("/api/ws", get(playback_socket))
         .route("/theme/assets/{id}", get(theme_asset))
         .route("/artwork/{id}", get(artwork_asset))
+        .layer(middleware::from_fn_with_state(state.address, validate_host))
         .with_state(state)
+}
+
+async fn validate_host(
+    State(address): State<SocketAddr>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if let Some(host) = request.headers().get(header::HOST)
+        && host
+            .to_str()
+            .ok()
+            .is_none_or(|host| !host_allowed(host, address))
+    {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    next.run(request).await
+}
+
+fn host_allowed(host: &str, address: SocketAddr) -> bool {
+    let Ok(origin) = url::Url::parse(&format!("http://{host}/")) else {
+        return false;
+    };
+    let Some(host) = origin.host_str() else {
+        return false;
+    };
+    let is_loopback = host == "localhost"
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback());
+    is_loopback
+        && origin.username().is_empty()
+        && origin.password().is_none()
+        && origin.port_or_known_default() == Some(address.port())
+        && origin.path() == "/"
+        && origin.query().is_none()
+        && origin.fragment().is_none()
 }
 
 async fn index(State(state): State<ServerState>) -> Response {
@@ -139,13 +178,14 @@ async fn index(State(state): State<ServerState>) -> Response {
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let page = match render_theme(&theme, &nonce) {
+    let mut page = match render_theme(&theme, &nonce) {
         Ok(page) => page,
         Err(error) => {
             warn!(%error, theme_id = theme.id(), "Could not render active theme");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    inject_theme_id(&mut page.html, "nowplaying-theme-id", theme.id());
     html_response(page)
 }
 
@@ -171,6 +211,7 @@ async fn preview_theme(Path(theme_id): Path<String>, State(state): State<ServerS
     page.html = page
         .html
         .replace("/theme/assets/", &format!("/preview/{theme_id}/assets/"));
+    inject_theme_id(&mut page.html, "nowplaying-preview-theme-id", &theme_id);
     html_response(page)
 }
 
@@ -215,7 +256,19 @@ async fn preview_family(
     page.html = page
         .html
         .replace("/theme/assets/", &format!("/preview/{theme_id}/assets/"));
+    inject_theme_id(&mut page.html, "nowplaying-preview-theme-id", &theme_id);
     html_response(page)
+}
+
+fn inject_theme_id(html: &mut String, name: &str, theme_id: &str) {
+    let marker = "<head>";
+    if let Some(index) = html.find(marker) {
+        let insert_at = index + marker.len();
+        html.insert_str(
+            insert_at,
+            &format!("<meta name=\"{name}\" content=\"{theme_id}\">"),
+        );
+    }
 }
 
 fn html_response(page: crate::runtime::RenderedPage) -> Response {
@@ -232,8 +285,28 @@ fn html_response(page: crate::runtime::RenderedPage) -> Response {
     response
 }
 
-async fn playback_state(State(state): State<ServerState>) -> Response {
-    let snapshot = resolve_current_snapshot(&state.playback, &state.artwork, &state.themes).await;
+#[derive(Debug, Deserialize)]
+struct PlaybackScope {
+    theme_id: Option<String>,
+    preview: Option<bool>,
+}
+
+async fn playback_state(
+    Query(scope): Query<PlaybackScope>,
+    State(state): State<ServerState>,
+) -> Response {
+    if let Some(theme_id) = scope.theme_id.as_deref()
+        && !state.themes.catalog().await.themes.contains_key(theme_id)
+    {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let snapshot = resolve_current_snapshot(
+        &state.playback,
+        &state.artwork,
+        &state.themes,
+        scope.theme_id.as_deref(),
+    )
+    .await;
     let mut response = Json(snapshot).into_response();
     response
         .headers_mut()
@@ -243,14 +316,27 @@ async fn playback_state(State(state): State<ServerState>) -> Response {
 
 async fn playback_socket(
     State(state): State<ServerState>,
+    Query(scope): Query<PlaybackScope>,
     headers: HeaderMap,
     upgrade: WebSocketUpgrade,
 ) -> Response {
+    if let Some(theme_id) = scope.theme_id.as_deref()
+        && !state.themes.catalog().await.themes.contains_key(theme_id)
+    {
+        return StatusCode::NOT_FOUND.into_response();
+    }
     if !origin_allowed(&headers, state.address) {
         return StatusCode::FORBIDDEN.into_response();
     }
     upgrade.on_upgrade(move |socket| {
-        handle_socket(socket, state.playback, state.artwork, state.themes)
+        handle_socket(
+            socket,
+            state.playback,
+            state.artwork,
+            state.themes,
+            scope.theme_id,
+            scope.preview.unwrap_or(false),
+        )
     })
 }
 
@@ -281,20 +367,31 @@ fn origin_allowed(headers: &HeaderMap, address: SocketAddr) -> bool {
 }
 
 async fn handle_socket(
-    socket: WebSocket,
+    mut socket: WebSocket,
     playback: Arc<PlaybackApi>,
     artwork: Arc<ArtworkCache>,
     themes: ThemeManager,
+    theme_id: Option<String>,
+    is_preview: bool,
 ) {
+    if !is_preview
+        && let Some(displayed_id) = theme_id.as_deref()
+        && themes
+            .active()
+            .await
+            .is_none_or(|theme| theme.id() != displayed_id)
+    {
+        let _ = socket
+            .send(Message::Text(r#"{"kind":"themeChanged"}"#.into()))
+            .await;
+        return;
+    }
     let mut updates = playback.subscribe();
     let mut theme_changes = themes.subscribe_changes();
     let (mut sender, mut receiver) = socket.split();
     let mut initial = playback.current_event();
     let mut artwork_source = initial.source_artwork_uri.clone();
-    let mut should_load_artwork = themes
-        .active()
-        .await
-        .is_some_and(|theme| theme.document.artwork.should_load());
+    let mut should_load_artwork = should_load_theme_artwork(&themes, theme_id.as_deref()).await;
     let mut artwork_url = if should_load_artwork {
         Some(resolve_artwork_url(&artwork, &initial).await)
     } else {
@@ -309,11 +406,18 @@ async fn handle_socket(
         tokio::select! {
             changed = theme_changes.changed() => {
                 if changed.is_err() { break; }
+                if is_preview {
+                    let Some(theme_id) = theme_id.as_deref() else {
+                        continue;
+                    };
+                    if !themes.catalog().await.themes.contains_key(theme_id) {
+                        let _ = sender.send(Message::Close(None)).await;
+                        break;
+                    }
+                    continue;
+                }
                 let mut event = playback.current_event();
-                should_load_artwork = themes
-                    .active()
-                    .await
-                    .is_some_and(|theme| theme.document.artwork.should_load());
+                should_load_artwork = should_load_theme_artwork(&themes, None).await;
                 artwork_source = event.source_artwork_uri.clone();
                 artwork_url = if should_load_artwork {
                     Some(resolve_artwork_url(&artwork, &event).await)
@@ -365,12 +469,10 @@ async fn resolve_current_snapshot(
     playback: &PlaybackApi,
     artwork: &ArtworkCache,
     themes: &ThemeManager,
+    theme_id: Option<&str>,
 ) -> ApiSnapshot {
     let source = playback.playback_snapshot();
-    let should_load_artwork = themes
-        .active()
-        .await
-        .is_some_and(|theme| theme.document.artwork.should_load());
+    let should_load_artwork = should_load_theme_artwork(themes, theme_id).await;
     let artwork_url = if should_load_artwork {
         let cached_artwork = artwork
             .resolve_or_fallback(source.metadata.artwork_uri.as_deref())
@@ -380,6 +482,21 @@ async fn resolve_current_snapshot(
         None
     };
     ApiSnapshot::from_playback(&source, artwork_url)
+}
+
+async fn should_load_theme_artwork(themes: &ThemeManager, theme_id: Option<&str>) -> bool {
+    if let Some(theme_id) = theme_id {
+        return themes
+            .catalog()
+            .await
+            .themes
+            .get(theme_id)
+            .is_some_and(|theme| theme.document.artwork.should_load());
+    }
+    themes
+        .active()
+        .await
+        .is_some_and(|theme| theme.document.artwork.should_load())
 }
 
 async fn resolve_artwork_url(artwork: &ArtworkCache, event: &ApiEvent) -> String {
@@ -595,6 +712,16 @@ data = "R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
         assert!(ServerError::NonLoopback.to_string().contains("loopback"));
     }
 
+    #[test]
+    fn host_header_rejects_non_loopback_and_wrong_port_origins() {
+        let address = "127.0.0.1:9005".parse().unwrap();
+        assert!(host_allowed("127.0.0.1:9005", address));
+        assert!(host_allowed("localhost:9005", address));
+        assert!(!host_allowed("attacker.example:9005", address));
+        assert!(!host_allowed("127.0.0.1:9006", address));
+        assert!(!host_allowed("localhost@attacker.example:9005", address));
+    }
+
     #[tokio::test]
     async fn generated_nonces_are_valid_and_fresh() {
         let first = create_nonce().await.unwrap();
@@ -674,6 +801,70 @@ data = "R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
             .unwrap();
         assert_eq!(fallback.status(), StatusCode::OK);
         assert_eq!(fallback.headers()[header::CONTENT_TYPE], "image/svg+xml");
+    }
+
+    #[tokio::test]
+    async fn inactive_theme_preview_uses_its_own_artwork_settings_without_activation() {
+        let root = TestDirectory::new();
+        let themes_dir = root.0.join("themes");
+        let settings_path = root.0.join("settings.toml");
+        let source_path = root.0.join("preview.toml");
+        tokio::fs::write(&source_path, THEME).await.unwrap();
+        let themes = ThemeManager::new(
+            &themes_dir,
+            &settings_path,
+            ThemeLoader::new("1.0.0").unwrap(),
+        )
+        .await
+        .unwrap();
+        themes.import_file(&source_path).await.unwrap();
+
+        let artwork = Arc::new(
+            ArtworkCache::new(root.0.join("artwork"), ArtworkCacheConfig::default())
+                .await
+                .unwrap(),
+        );
+        let (_, playback_state) = watch::channel(PlaybackSnapshot::default());
+        let (_, playback_events) = broadcast::channel(8);
+        let playback = Arc::new(PlaybackApi::from_receivers(playback_state, playback_events));
+        let app = router(ServerState {
+            playback,
+            themes: themes.clone(),
+            artwork,
+            address: "127.0.0.1:9005".parse().unwrap(),
+        });
+
+        let preview = app
+            .clone()
+            .oneshot(
+                Request::get("/preview/server-theme")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(preview.status(), StatusCode::OK);
+        let preview_body = to_bytes(preview.into_body(), 1024 * 1024).await.unwrap();
+        assert!(
+            std::str::from_utf8(&preview_body)
+                .unwrap()
+                .contains("name=\"nowplaying-preview-theme-id\" content=\"server-theme\"")
+        );
+
+        let state = app
+            .oneshot(
+                Request::get("/api/state?theme_id=server-theme&preview=true")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(state.status(), StatusCode::OK);
+        let state_body = to_bytes(state.into_body(), 64 * 1024).await.unwrap();
+        let state_json: serde_json::Value = serde_json::from_slice(&state_body).unwrap();
+        assert_eq!(state_json["metadata"]["artworkUrl"], "/artwork/fallback");
+        assert!(themes.active_ids().await.is_empty());
+        assert!(themes.active().await.is_none());
     }
 
     #[tokio::test]

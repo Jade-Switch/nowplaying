@@ -811,29 +811,44 @@ impl ThemeManager {
         let _mutation = self.mutation.lock().await;
         let discovery = self.loader.discover(&self.themes_dir).await?;
         *self.catalog.write().await = discovery.clone();
+        let mut changed = false;
         let mut authorized = self.active_ids.read().await.clone();
         authorized.retain(|id| discovery.themes.contains_key(id));
         if authorized != *self.active_ids.read().await {
             save_active_ids(&self.settings_path, &authorized).await?;
             *self.active_ids.write().await = authorized;
-            self.notify_theme_change();
+            changed = true;
         }
         let active = self.active.read().await.clone();
-        if let Some(active) = active
-            && !discovery.themes.contains_key(active.id())
-            && let Some(family_id) = active.document.theme.family_id.as_deref()
-            && let Some(group) = discovery
-                .selector_groups()
-                .into_iter()
-                .find(|group| group.family_id.as_deref() == Some(family_id))
-        {
-            let remembered = self.selected_family_variants().await;
-            if let Some(fallback_id) = group.preferred_variant_id(None, &remembered)
-                && let Some(fallback) = discovery.themes.get(&fallback_id).cloned()
-            {
-                *self.active.write().await = Some(fallback);
-                self.notify_theme_change();
+        let replacement = if let Some(active) = active.as_ref() {
+            if let Some(updated) = discovery.themes.get(active.id()) {
+                Some(updated.clone())
+            } else if let Some(family_id) = active.document.theme.family_id.as_deref() {
+                let remembered = self.selected_family_variants().await;
+                discovery
+                    .selector_groups()
+                    .into_iter()
+                    .find(|group| group.family_id.as_deref() == Some(family_id))
+                    .and_then(|group| group.preferred_variant_id(None, &remembered))
+                    .and_then(|id| discovery.themes.get(&id).cloned())
+            } else {
+                None
             }
+        } else {
+            None
+        };
+        if active.as_ref().map(|theme| theme.id()) != replacement.as_ref().map(|theme| theme.id())
+            || active.as_ref().is_some_and(|theme| {
+                replacement
+                    .as_ref()
+                    .is_some_and(|updated| !Arc::ptr_eq(theme, updated))
+            })
+        {
+            *self.active.write().await = replacement;
+            changed = true;
+        }
+        if changed {
+            self.notify_theme_change();
         }
         Ok(discovery)
     }
@@ -1104,6 +1119,7 @@ impl ThemeManager {
             .ok_or_else(|| ThemeError::NotFound(id.to_owned()))?;
         tokio::fs::remove_file(path).await?;
         self.catalog.write().await.themes.remove(id);
+        self.notify_theme_change();
         Ok(())
     }
 

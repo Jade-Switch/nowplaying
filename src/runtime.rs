@@ -158,9 +158,8 @@ pub struct PlaybackApi {
 }
 
 impl PlaybackApi {
-    /// Create an API that reports a disconnected snapshot when MPRIS cannot be
-    /// started. The HTTP service can still run and playback monitoring can be
-    /// brought back independently on a later application restart.
+    /// Create an API that reports a disconnected snapshot when no playback
+    /// provider is available.
     pub fn disconnected() -> Self {
         let (state_tx, state_rx) = watch::channel(PlaybackSnapshot::default());
         let (events_tx, events_rx) = broadcast::channel(1);
@@ -361,34 +360,55 @@ const API_BOOTSTRAP: &str = r#"(function(){
       return () => listeners.get(kind).delete(callback);
     }
   });
-  let retry = 500;
-  async function loadState() {
-    try {
-      const response = await fetch("/api/state", { cache: "no-store" });
-      if (!response.ok) throw new Error("state endpoint returned " + response.status);
-      publish({ kind: "snapshot", snapshot: await response.json() });
-      retry = 500;
-    } catch (_) {
-      setTimeout(loadState, retry);
-      retry = Math.min(retry * 2, 10000);
-    }
-  }
-  loadState();
+  const previewThemeId = document.querySelector('meta[name="nowplaying-preview-theme-id"]')?.content;
+  const themeId = previewThemeId || document.querySelector('meta[name="nowplaying-theme-id"]')?.content;
+  const scope = themeId
+    ? "?theme_id=" + encodeURIComponent(themeId) + (previewThemeId ? "&preview=true" : "")
+    : "";
   let socketRetry = 500;
+  let socket = null;
+  let reconnectTimer = null;
   function connectEvents() {
+    if (document.visibilityState === "hidden" || socket !== null) return;
     const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(scheme + "//" + location.host + "/api/ws");
-    socket.onopen = () => { socketRetry = 500; };
-    socket.onmessage = event => {
+    const connection = new WebSocket(scheme + "//" + location.host + "/api/ws" + scope);
+    socket = connection;
+    connection.onopen = () => { socketRetry = 500; };
+    connection.onmessage = event => {
       try { publish(JSON.parse(event.data)); } catch (_) {}
     };
-    socket.onclose = () => {
-      setTimeout(connectEvents, socketRetry);
+    connection.onclose = () => {
+      if (socket !== connection) return;
+      socket = null;
+      if (document.visibilityState === "hidden") return;
+      reconnectTimer = setTimeout(connectEvents, socketRetry);
       socketRetry = Math.min(socketRetry * 2, 10000);
     };
-    socket.onerror = () => socket.close();
+    connection.onerror = () => connection.close();
   }
   connectEvents();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      if (socket !== null) {
+        const previous = socket;
+        socket = null;
+        previous.close();
+      }
+    } else {
+      connectEvents();
+    }
+  });
+  window.addEventListener("pagehide", () => {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    if (socket !== null) {
+      const previous = socket;
+      socket = null;
+      previous.close();
+    }
+  }, { once: true });
 })();"#;
 
 #[cfg(test)]

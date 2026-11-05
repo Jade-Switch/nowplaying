@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tag", required=True, help="release tag, for example v0.1.0")
+    parser.add_argument("--tag", required=True, help="release tag, for example v1.0.0")
     args = parser.parse_args()
 
     with (ROOT / "Cargo.toml").open("rb") as stream:

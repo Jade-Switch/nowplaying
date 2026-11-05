@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use ksni::{Tray, TrayMethods, menu::StandardItem};
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::Sender;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TrayCommand {
@@ -13,12 +13,12 @@ pub enum TrayCommand {
 }
 
 pub struct StudioTray {
-    commands: UnboundedSender<TrayCommand>,
+    commands: Sender<TrayCommand>,
     available: Arc<AtomicBool>,
 }
 
 impl StudioTray {
-    pub fn new(commands: UnboundedSender<TrayCommand>, available: Arc<AtomicBool>) -> Self {
+    pub fn new(commands: Sender<TrayCommand>, available: Arc<AtomicBool>) -> Self {
         Self {
             commands,
             available,
@@ -26,7 +26,7 @@ impl StudioTray {
     }
 
     fn send(&self, command: TrayCommand) {
-        let _ = self.commands.send(command);
+        let _ = self.commands.try_send(command);
     }
 }
 
@@ -54,7 +54,7 @@ impl Tray for StudioTray {
             StandardItem {
                 label: "Open nowplaying".to_owned(),
                 activate: Box::new(move |_| {
-                    let _ = show.send(TrayCommand::Show);
+                    let _ = show.try_send(TrayCommand::Show);
                 }),
                 ..Default::default()
             }
@@ -63,7 +63,7 @@ impl Tray for StudioTray {
             StandardItem {
                 label: "Quit".to_owned(),
                 activate: Box::new(move |_| {
-                    let _ = quit.send(TrayCommand::Quit);
+                    let _ = quit.try_send(TrayCommand::Quit);
                 }),
                 ..Default::default()
             }
@@ -82,7 +82,7 @@ impl Tray for StudioTray {
 }
 
 pub async fn start(
-    commands: UnboundedSender<TrayCommand>,
+    commands: Sender<TrayCommand>,
     available: Arc<AtomicBool>,
 ) -> Result<ksni::Handle<StudioTray>, ksni::Error> {
     if std::env::var_os("FLATPAK_ID").is_some() {
