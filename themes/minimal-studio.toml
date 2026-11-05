@@ -1,0 +1,378 @@
+[theme]
+id = "minimal-studio"
+name = "Minimal Studio"
+version = "1.0.1"
+format_version = 1
+author = "nowplaying"
+description = "Artwork-free minimal typography overlay"
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 420
+height = 64
+background = "transparent"
+
+[layout]
+direction = "vertical"
+alignment = "start"
+spacing = 3
+padding = 8
+
+[artwork]
+enabled = false
+position = "hidden"
+width = 0
+height = 0
+
+[metadata]
+show_title = true
+show_artist = true
+show_album = false
+alignment = "start"
+
+[progress]
+enabled = true
+position = "bottom"
+height = 2
+
+[animations]
+enabled = true
+reduced_motion_support = true
+track_change = "crossfade"
+track_change_duration_ms = 250
+
+[colors]
+background = "transparent"
+text = "#ffffff"
+muted = "#d9d9d9"
+accent = "#ffffff"
+
+[html]
+template = '''
+<main class="minimal" data-status="unknown" data-connected="false" aria-live="polite">
+  <div class="top">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span id="status">WAITING</span>
+    <span id="player">NO PLAYER</span>
+  </div>
+
+  <section class="details">
+    <h1 id="title">Nothing playing</h1>
+    <p id="artist">Waiting for player</p>
+  </section>
+
+  <progress
+    class="progress"
+    id="progress"
+    max="100"
+    value="0"
+    aria-label="Track progress"
+  ></progress>
+</main>
+'''
+
+[css]
+stylesheet = '''
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  --white: #ffffff;
+  --muted: rgba(255, 255, 255, .82);
+  --faint: rgba(255, 255, 255, .55);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  color: var(--white);
+  background: transparent;
+}
+
+.minimal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  width: 420px;
+  height: 64px;
+  padding: 6px 10px 9px;
+  overflow: hidden;
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, .7);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .65);
+}
+
+/* Playback status */
+
+.top {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 10px;
+  flex: 0 0 10px;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: 1.5px;
+  line-height: 10px;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--faint);
+  transition: background 200ms ease, box-shadow 200ms ease;
+}
+
+.minimal[data-status="playing"] .status-dot {
+  background: #ffffff;
+  box-shadow: 0 0 7px rgba(255, 255, 255, .75);
+}
+
+.minimal[data-status="paused"] .status-dot {
+  background: #bcbcbc;
+}
+
+.minimal[data-status="stopped"] .status-dot {
+  background: #777777;
+}
+
+#player {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--faint);
+  text-overflow: ellipsis;
+}
+
+/* Track metadata */
+
+.details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  gap: 1px;
+  overflow: hidden;
+}
+
+h1 {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--white);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#artist {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Playback progress */
+
+.progress {
+  position: absolute;
+  right: 10px;
+  bottom: 3px;
+  left: 10px;
+  display: block;
+  width: 400px;
+  height: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  appearance: none;
+  background: rgba(255, 255, 255, .25);
+}
+
+.progress::-webkit-progress-bar {
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .25);
+}
+
+.progress::-webkit-progress-value {
+  border-radius: 99px;
+  background: #ffffff;
+  transition: width 300ms linear;
+}
+
+.progress::-moz-progress-bar {
+  border-radius: 99px;
+  background: #ffffff;
+}
+
+/* Track change */
+
+.minimal.is-changing .details {
+  animation: track-arrive 250ms ease both;
+}
+
+@keyframes track-arrive {
+  from {
+    opacity: .35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const root = document.querySelector('.minimal');
+  const title = $('title');
+  const artist = $('artist');
+  const statusLabel = $('status');
+  const playerLabel = $('player');
+  const progress = $('progress');
+
+  if (
+    !root ||
+    !window.NowPlaying ||
+    typeof window.NowPlaying.subscribe !== 'function'
+  ) {
+    return;
+  }
+
+  let currentTrack = null;
+  let changeTimer = 0;
+
+  function render(snapshot) {
+    if (!snapshot) return;
+
+    const metadata = snapshot.metadata || {};
+    const connected = snapshot.connected === true;
+
+    const artists = Array.isArray(metadata.artists)
+      ? metadata.artists
+          .filter(value => typeof value === 'string' && value.trim())
+          .join(' · ')
+      : '';
+
+    const status = connected &&
+      typeof snapshot.status === 'string'
+        ? snapshot.status
+        : 'unknown';
+
+    const nextTrack = metadata.trackId ||
+      [metadata.title || '', artists].join('|');
+
+    if (currentTrack !== null && nextTrack !== currentTrack) {
+      root.classList.remove('is-changing');
+
+      requestAnimationFrame(() => {
+        root.classList.add('is-changing');
+      });
+
+      clearTimeout(changeTimer);
+
+      changeTimer = setTimeout(() => {
+        root.classList.remove('is-changing');
+      }, 270);
+    }
+
+    currentTrack = nextTrack;
+
+    title.textContent =
+      typeof metadata.title === 'string' && metadata.title.trim()
+        ? metadata.title.trim()
+        : connected ? 'Unknown track' : 'Nothing playing';
+
+    artist.textContent = artists ||
+      (connected ? 'Unknown artist' : 'Waiting for player');
+
+    const statusLabels = {
+      playing: 'PLAYING',
+      paused: 'PAUSED',
+      stopped: 'STOPPED',
+      unknown: 'WAITING'
+    };
+
+    statusLabel.textContent = statusLabels[status] || 'WAITING';
+
+    playerLabel.textContent =
+      snapshot.player &&
+      typeof snapshot.player.identity === 'string'
+        ? snapshot.player.identity
+        : 'NO PLAYER';
+
+    root.dataset.status = status;
+    root.dataset.connected = String(connected);
+
+    const duration = Number.isFinite(snapshot.durationMs) &&
+      snapshot.durationMs > 0
+        ? snapshot.durationMs
+        : 0;
+
+    const position = Number.isFinite(snapshot.positionMs) &&
+      snapshot.positionMs >= 0
+        ? snapshot.positionMs
+        : 0;
+
+    const percentage = duration > 0
+      ? Math.max(0, Math.min(100, position / duration * 100))
+      : 0;
+
+    progress.value = percentage;
+  }
+
+  window.NowPlaying.subscribe(render);
+
+  if (typeof window.NowPlaying.getState === 'function') {
+    const current = window.NowPlaying.getState();
+
+    if (current) render(current);
+  }
+})();
+'''

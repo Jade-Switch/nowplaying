@@ -41,6 +41,8 @@ struct RunningApp {
     themes: ThemeManager,
     discovery: nowplaying::theme::ThemeDiscovery,
     active_theme: Option<String>,
+    active_theme_ids: Vec<String>,
+    active_theme_limit: usize,
     family_selections: BTreeMap<String, String>,
     playback_provider: Option<PlaybackHandle>,
     playback_api: Arc<PlaybackApi>,
@@ -186,6 +188,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         themes: app.themes.clone(),
         catalog: app.discovery.clone(),
         active_theme: app.active_theme.clone(),
+        active_theme_ids: app.active_theme_ids.clone(),
+        active_theme_limit: app.active_theme_limit,
         family_selections: app.family_selections.clone(),
         playback_state: app.playback_provider.as_ref().map(PlaybackHandle::state),
         players_state: app
@@ -266,7 +270,12 @@ async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
         warn!(path = %issue.path.display(), message = %issue.message, "Theme was skipped");
     }
     restore_startup_theme(&themes).await?;
+    if let Err(error) = themes.restore_active_ids().await {
+        warn!(%error, "Could not restore active themes");
+    }
     let active_theme = themes.active().await.map(|theme| theme.id().to_owned());
+    let active_theme_ids = themes.active_ids().await;
+    let active_theme_limit = themes.active_limit().await;
     let family_selections = themes.selected_family_variants().await;
 
     let artwork = Arc::new(
@@ -308,6 +317,8 @@ async fn start_runtime() -> Result<RunningApp, Box<dyn Error>> {
         themes,
         discovery,
         active_theme,
+        active_theme_ids,
+        active_theme_limit,
         family_selections,
         playback_provider,
         playback_api,
@@ -331,10 +342,6 @@ async fn install_bundled_themes(themes_dir: &std::path::Path) -> io::Result<()> 
         (
             "starfall.toml",
             include_bytes!("../themes/starfall.toml").as_slice(),
-        ),
-        (
-            "spectral-tide.toml",
-            include_bytes!("../themes/spectral-tide.toml").as_slice(),
         ),
     ] {
         install_bundled_theme(themes_dir, filename, contents).await?;
@@ -443,12 +450,7 @@ mod bundled_theme_tests {
 
         install_bundled_themes(&directory).await.unwrap();
 
-        for filename in [
-            "catppuccin-mocha.toml",
-            "quiet-mocha.toml",
-            "starfall.toml",
-            "spectral-tide.toml",
-        ] {
+        for filename in ["catppuccin-mocha.toml", "quiet-mocha.toml", "starfall.toml"] {
             assert!(directory.join(filename).is_file(), "missing {filename}");
         }
         assert_eq!(

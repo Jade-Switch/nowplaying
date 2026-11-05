@@ -3,7 +3,7 @@ id = "starfall"
 name = "Starfall"
 version = "1.1.0"
 format_version = 1
-author = "Jade"
+author = "nowplaying"
 description = "A quiet pixel-art night sky in lavender tones."
 
 [theme.compatibility]

@@ -1,0 +1,180 @@
+[theme]
+id = "dreamwave-compact"
+name = "Dreamwave"
+family_id = "dreamwave"
+version = "1.0.1"
+format_version = 1
+author = "nowplaying"
+description = "Compact synthwave overlay with geometric sunset motif"
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 420
+height = 120
+background = "transparent"
+
+[artwork]
+enabled = true
+position = "left"
+width = 88
+height = 88
+fit = "cover"
+
+[html]
+template = '''
+<main class="dream">
+  <div class="sun" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="artwork-frame">
+    <img id="artwork" alt="Album artwork" hidden>
+    <div id="art-fallback" class="cover fallback" aria-hidden="true" hidden>♫</div>
+  </div>
+  <section>
+    <div class="eyebrow">
+      <span id="status">WAITING</span>
+      <span id="player">NO PLAYER</span>
+    </div>
+    <h1 id="title">Nothing playing</h1>
+    <p id="artist">Waiting for player</p>
+    <p id="album"></p>
+    <div class="progress-track" role="progressbar" aria-label="Playback progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div id="progress"></div>
+    </div>
+    <footer>
+      <span id="elapsed">0:00</span>
+      <span id="duration">--:--</span>
+    </footer>
+  </section>
+</main>
+'''
+
+[css]
+stylesheet = '''
+*{box-sizing:border-box}
+html,body{width:420px;height:120px;margin:0;overflow:hidden}
+body{background:transparent;color:#fff1fa;font:13px/1.4 "Segoe UI",sans-serif}
+.dream{position:relative;isolation:isolate;display:flex;align-items:center;gap:13px;width:420px;height:120px;padding:14px 15px;background:linear-gradient(105deg,rgba(22,15,48,.97),rgba(37,20,65,.95));border:1px solid rgba(255,119,190,.5);overflow:hidden}
+.artwork-frame{position:relative;z-index:2;flex:none;width:88px;height:88px;border:1px solid #ff82bd;background:#3d2865}
+#artwork,.cover{width:100%;height:100%;object-fit:cover}
+.fallback{display:grid;place-items:center;background:#3d2865;color:#ff9acb;font-size:32px}
+[hidden]{display:none!important}
+section{position:relative;z-index:2;min-width:0;flex:1}
+.eyebrow{display:flex;justify-content:space-between;align-items:center;gap:7px;color:#ff9acb;font-size:8px;letter-spacing:1.2px;white-space:nowrap}
+#status{flex:none}
+#player{min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:right}
+h1{font-size:18px;line-height:1.2;margin:6px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+p{margin:0;color:#d8c8f1;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#album{display:none}
+.progress-track{height:2px;background:#55406d;margin-top:9px;overflow:hidden}
+#progress{height:100%;width:0;background:linear-gradient(90deg,#ff78b9,#ffb56b,#70e5f0);transition:width .3s linear}
+footer{display:flex;justify-content:space-between;color:#a99acb;font-size:8px;margin-top:4px;font-variant-numeric:tabular-nums}
+.sun{position:absolute;width:112px;height:112px;border-radius:50%;right:12px;top:-72px;background:linear-gradient(#ff8cb8,#a25be1 65%,transparent 66%);opacity:.22;overflow:hidden;z-index:0}
+.sun i{position:absolute;left:0;right:0;height:4px;background:#271641}
+.sun i:nth-child(1){top:50px}
+.sun i:nth-child(2){top:61px}
+.sun i:nth-child(3){top:73px}
+@media(prefers-reduced-motion:reduce){#progress{transition:none}}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const $ = id => document.getElementById(id);
+  const put = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+
+  const time = ms => {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
+  let currentArtworkUrl = "";
+
+  function render(snapshot) {
+    if (!snapshot) return;
+
+    const metadata = snapshot.metadata || {};
+    const artists = Array.isArray(metadata.artists)
+      ? metadata.artists.filter(value => typeof value === "string" && value.trim()).join(" · ")
+      : "";
+
+    const connected = snapshot.connected === true;
+    const status = connected
+      ? (typeof snapshot.status === "string" ? snapshot.status : "unknown")
+      : "disconnected";
+
+    put("title", typeof metadata.title === "string" && metadata.title.trim()
+      ? metadata.title.trim() : "Nothing playing");
+    put("artist", artists || (connected ? "Unknown artist" : "Waiting for player"));
+    put("status", status.toUpperCase());
+    put("player", snapshot.player && typeof snapshot.player.identity === "string"
+      ? snapshot.player.identity : "NO PLAYER");
+
+    const duration = Number.isFinite(snapshot.durationMs) && snapshot.durationMs > 0
+      ? snapshot.durationMs : 0;
+    const position = Number.isFinite(snapshot.positionMs) && snapshot.positionMs >= 0
+      ? snapshot.positionMs : 0;
+    const displayedPosition = duration ? Math.min(position, duration) : position;
+    const percentage = duration ? Math.min(100, position / duration * 100) : 0;
+
+    put("elapsed", time(displayedPosition));
+    put("duration", duration ? time(duration) : "--:--");
+
+    const progress = $("progress");
+    const progressTrack = progress && progress.parentElement;
+    if (progress) progress.style.width = percentage + "%";
+    if (progressTrack) progressTrack.setAttribute("aria-valuenow", String(Math.round(percentage)));
+
+    const image = $("artwork");
+    const fallback = $("art-fallback");
+    const url = typeof metadata.artworkUrl === "string" ? metadata.artworkUrl.trim() : "";
+
+    if (image && fallback) {
+      if (!url) {
+        currentArtworkUrl = "";
+        image.onload = null;
+        image.onerror = null;
+        image.removeAttribute("src");
+        image.hidden = true;
+        fallback.hidden = false;
+      } else if (url !== currentArtworkUrl) {
+        currentArtworkUrl = url;
+        image.hidden = true;
+        fallback.hidden = false;
+
+        image.onload = () => {
+          if (currentArtworkUrl === url) {
+            image.hidden = false;
+            fallback.hidden = true;
+          }
+        };
+
+        image.onerror = () => {
+          if (currentArtworkUrl === url) {
+            image.hidden = true;
+            fallback.hidden = false;
+          }
+        };
+
+        image.src = url;
+
+        if (image.complete && image.naturalWidth > 0) {
+          image.onload();
+        }
+      }
+    }
+
+    document.body.dataset.status = status;
+    document.body.dataset.connected = connected ? "true" : "false";
+  }
+
+  if (window.NowPlaying && typeof window.NowPlaying.subscribe === "function") {
+    window.NowPlaying.subscribe(render);
+    const current = window.NowPlaying.getState();
+    if (current) render(current);
+  }
+})();
+'''

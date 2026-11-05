@@ -1,0 +1,368 @@
+[theme]
+id = "aurora-glass"
+name = "Aurora Glass"
+version = "1.0.0"
+format_version = 1
+author = "nowplaying"
+description = "Cool translucent glass panel with soft aurora accents and an opaque fallback."
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 420
+height = 120
+background = "transparent"
+
+[artwork]
+enabled = true
+width = 88
+height = 88
+position = "left"
+fit = "cover"
+
+[html]
+template = '''
+<main class="glass">
+  <div class="artwork-container">
+    <img id="artwork" alt="Album artwork" hidden>
+    <div id="art-fallback" class="cover fallback" aria-label="No album artwork">♫</div>
+  </div>
+
+  <section class="content">
+    <div class="head">
+      <span class="status-indicator" aria-hidden="true"></span>
+      <span id="status">WAITING</span>
+      <span id="player">NO PLAYER</span>
+    </div>
+
+    <h1 id="title">Nothing playing</h1>
+    <p id="artist">Waiting for player</p>
+    <p id="album"></p>
+
+    <div class="progress-row">
+      <span id="elapsed">0:00</span>
+      <div
+        class="progress-track"
+        id="progress-track"
+        role="progressbar"
+        aria-label="Track progress"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+      >
+        <div id="progress"></div>
+      </div>
+      <span id="duration">--:--</span>
+    </div>
+  </section>
+</main>
+'''
+
+[css]
+stylesheet = '''
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  width: 420px;
+  height: 120px;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: transparent;
+  color: #f5f8ff;
+  font: 13px/1.4 "Segoe UI", sans-serif;
+}
+
+.glass {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 420px;
+  height: 120px;
+  padding: 14px;
+  overflow: hidden;
+  background: rgba(20, 28, 48, 0.94);
+  border: 1px solid rgba(211, 229, 255, 0.3);
+  border-radius: 12px;
+}
+
+@supports (backdrop-filter: blur(10px)) {
+  .glass {
+    background: rgba(20, 28, 48, 0.76);
+    backdrop-filter: blur(10px);
+  }
+}
+
+.artwork-container {
+  position: relative;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #354565;
+}
+
+#artwork,
+.cover {
+  display: block;
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+}
+
+#artwork {
+  object-fit: cover;
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #354565, #28334d);
+  color: #b7caff;
+  font-size: 30px;
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #b5d8ff;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.1px;
+  white-space: nowrap;
+}
+
+.status-indicator {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #91a3c2;
+}
+
+body[data-status="playing"] .status-indicator {
+  background: #7de1d3;
+  box-shadow: 0 0 7px rgba(125, 225, 211, 0.7);
+}
+
+body[data-status="paused"] .status-indicator {
+  background: #e6c88b;
+}
+
+body[data-status="disconnected"] .status-indicator,
+body[data-status="stopped"] .status-indicator {
+  background: #91a3c2;
+}
+
+#player {
+  margin-left: auto;
+  overflow: hidden;
+  color: #91a3c2;
+  text-overflow: ellipsis;
+}
+
+h1 {
+  margin: 5px 0 2px;
+  overflow: hidden;
+  color: #f5f8ff;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.content p {
+  margin: 0;
+  overflow: hidden;
+  color: #d0d9ec;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#album {
+  margin-top: 1px;
+  color: #9baecb;
+  font-size: 10px;
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+  color: #9baecb;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+  flex: 1;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(220, 235, 255, 0.2);
+}
+
+#progress {
+  width: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #7de1d3, #9d9bff);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #progress {
+    transition: width 300ms linear;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const put = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+
+  const time = ms => {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
+  function render(snapshot) {
+    if (!snapshot) return;
+
+    const metadata = snapshot.metadata || {};
+    const player = snapshot.player || null;
+
+    const connected = snapshot.connected === true;
+    const rawStatus = snapshot.status || "unknown";
+    const status = connected ? rawStatus : "disconnected";
+
+    const artists = Array.isArray(metadata.artists)
+      ? metadata.artists
+          .filter(value => typeof value === "string" && value.trim())
+          .join(" · ")
+      : "";
+
+    const title = typeof metadata.title === "string" && metadata.title.trim()
+      ? metadata.title
+      : "Nothing playing";
+
+    const artist = artists || (connected ? "Unknown artist" : "Waiting for player");
+
+    const album = typeof metadata.album === "string"
+      ? metadata.album
+      : "";
+
+    put("title", title);
+    put("artist", artist);
+    put("album", album);
+    put("status", status.toUpperCase());
+
+    const identity = player && typeof player.identity === "string"
+      ? player.identity
+      : "NO PLAYER";
+
+    put("player", identity);
+
+    const duration = Number.isFinite(snapshot.durationMs) && snapshot.durationMs > 0
+      ? snapshot.durationMs
+      : 0;
+
+    const position = Number.isFinite(snapshot.positionMs) && snapshot.positionMs >= 0
+      ? snapshot.positionMs
+      : 0;
+
+    const progress = duration
+      ? Math.min(100, position / duration * 100)
+      : 0;
+
+    put("elapsed", time(position));
+    put("duration", duration ? time(duration) : "--:--");
+
+    const bar = $("progress");
+    const track = $("progress-track");
+
+    if (bar) {
+      bar.style.width = `${progress}%`;
+    }
+
+    if (track) {
+      track.setAttribute("aria-valuenow", String(Math.round(progress)));
+    }
+
+    const image = $("artwork");
+    const fallback = $("art-fallback");
+    const artworkUrl = typeof metadata.artworkUrl === "string"
+      ? metadata.artworkUrl
+      : "";
+
+    if (image && fallback) {
+      if (artworkUrl) {
+        if (image.getAttribute("src") !== artworkUrl) {
+          image.hidden = true;
+          fallback.hidden = false;
+
+          image.onload = () => {
+            image.hidden = false;
+            fallback.hidden = true;
+          };
+
+          image.onerror = () => {
+            image.hidden = true;
+            fallback.hidden = false;
+          };
+
+          image.src = artworkUrl;
+        }
+      } else {
+        image.removeAttribute("src");
+        image.hidden = true;
+        fallback.hidden = false;
+      }
+    }
+
+    document.body.dataset.status = status;
+    document.body.dataset.connected = connected ? "true" : "false";
+  }
+
+  if (window.NowPlaying && typeof window.NowPlaying.subscribe === "function") {
+    window.NowPlaying.subscribe(render);
+  }
+})();
+'''

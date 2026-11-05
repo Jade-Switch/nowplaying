@@ -1,0 +1,401 @@
+[theme]
+id = "neon-circuit-standard"
+name = "Neon Circuit"
+version = "1.1.0"
+format_version = 1
+author = "nowplaying"
+description = "Restrained cyberpunk with electric circuit accents"
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 800
+height = 150
+
+[artwork]
+enabled = true
+width = 160
+height = 160
+
+[html]
+template = '''
+<main class="shell">
+  <aside>
+    <b></b>
+    <span>LIVE AUDIO</span>
+  </aside>
+
+  <div class="art">
+    <img id="artwork" alt="Album artwork" hidden>
+    <div id="art-fallback" class="fallback">♫</div>
+    <div class="art-corner"></div>
+  </div>
+
+  <section>
+    <small>
+      <i id="status">WAITING</i>
+      <span class="separator">/</span>
+      <span id="player">NO PLAYER</span>
+    </small>
+
+    <h1 id="title">Nothing playing</h1>
+    <p id="artist">Waiting for player</p>
+    <p id="album"></p>
+
+    <div class="meter">
+      <div id="progress"></div>
+    </div>
+
+    <footer>
+      <span id="elapsed">0:00</span>
+      <span id="duration">--:--</span>
+    </footer>
+  </section>
+
+  <em></em>
+</main>
+'''
+
+[css]
+stylesheet = '''
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+  color: #eafaff;
+  font: 13px/1.4 "Segoe UI", sans-serif;
+}
+
+.shell {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 800px;
+  height: 150px;
+  padding: 12px 22px;
+  background: rgba(10, 15, 25, 0.95);
+  border: 1px solid #24505e;
+  position: relative;
+  overflow: hidden;
+}
+
+.shell::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, #35e6f2, transparent 65%, #ec4bb8);
+  opacity: 0.65;
+}
+
+aside {
+  width: 14px;
+  height: 100%;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #35e6f2;
+  border-right: 1px solid rgba(53, 230, 242, 0.2);
+  padding-right: 10px;
+}
+
+aside b {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #35e6f2;
+  box-shadow: 0 0 10px #35e6f2;
+  flex: none;
+}
+
+aside span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 8px;
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+
+.art {
+  width: 112px;
+  height: 112px;
+  flex: none;
+  position: relative;
+  padding: 4px;
+  border: 1px solid #35e6f2;
+  background: #101c2a;
+  box-shadow: 0 0 12px rgba(53, 230, 242, 0.12);
+}
+
+#artwork,
+.fallback {
+  position: absolute;
+  inset: 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  object-fit: cover;
+}
+
+#artwork[hidden],
+.fallback[hidden] {
+  display: none !important;
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  background: #101c2a;
+  color: #35e6f2;
+  font-size: 34px;
+}
+
+.art-corner {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #ec4bb8;
+  border-bottom: 2px solid #ec4bb8;
+  pointer-events: none;
+}
+
+section {
+  min-width: 0;
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+small {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #45dce8;
+  font-size: 9px;
+  letter-spacing: 1.7px;
+  text-transform: uppercase;
+}
+
+small i {
+  font-style: normal;
+}
+
+.separator {
+  color: #536b7b;
+}
+
+h1 {
+  font-size: 23px;
+  line-height: 1.15;
+  margin: 6px 0 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#artist {
+  margin: 0;
+  color: #b7c9d4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#album {
+  font-size: 10px;
+  color: #728c9c;
+  margin: 3px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meter {
+  height: 3px;
+  background: #253744;
+  margin-top: 12px;
+  flex: none;
+}
+
+.meter div {
+  height: 100%;
+  width: 0;
+  background: #35e6f2;
+  box-shadow: 0 0 8px #35e6f2;
+  transition: width 0.3s linear;
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  color: #728c9c;
+  font-size: 8px;
+  margin-top: 4px;
+}
+
+em {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-top: 2px solid #ec4bb8;
+  border-right: 2px solid #ec4bb8;
+}
+
+body[data-status="paused"] aside b {
+  background: #ec4bb8;
+  box-shadow: 0 0 10px #ec4bb8;
+}
+
+body[data-status="playing"] aside b {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+body[data-status="disconnected"] aside b {
+  background: #536b7b;
+  box-shadow: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-status="playing"] aside b {
+    animation: none;
+  }
+
+  .meter div {
+    transition: none;
+  }
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const put = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+
+  const time = ms => {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
+  let requestedArtwork = null;
+
+  function setArtwork(url) {
+    const img = $("artwork");
+    const fallback = $("art-fallback");
+
+    if (!img || !fallback || url === requestedArtwork) return;
+
+    requestedArtwork = url;
+    img.onload = null;
+    img.onerror = null;
+    img.hidden = true;
+    fallback.hidden = false;
+
+    if (!url) {
+      img.removeAttribute("src");
+      return;
+    }
+
+    img.onload = () => {
+      if (requestedArtwork !== url) return;
+      img.hidden = false;
+      fallback.hidden = true;
+    };
+
+    img.onerror = () => {
+      if (requestedArtwork !== url) return;
+      img.hidden = true;
+      fallback.hidden = false;
+    };
+
+    img.src = url;
+  }
+
+  function render(s) {
+    if (!s) return;
+
+    const m = s.metadata || {};
+    const artists = Array.isArray(m.artists)
+      ? m.artists
+          .filter(x => typeof x === "string" && x.trim())
+          .join(" · ")
+      : "";
+
+    const status = s.connected
+      ? (s.status || "unknown")
+      : "disconnected";
+
+    put("title",
+      typeof m.title === "string" && m.title.trim()
+        ? m.title
+        : "Nothing playing"
+    );
+
+    put("artist",
+      artists || (s.connected ? "Unknown artist" : "Waiting for player")
+    );
+
+    put("album", typeof m.album === "string" ? m.album : "");
+    put("status", status.toUpperCase());
+    put("player",
+      s.player && s.player.identity
+        ? s.player.identity
+        : "NO PLAYER"
+    );
+
+    const duration = Number.isFinite(s.durationMs) && s.durationMs > 0
+      ? s.durationMs
+      : 0;
+
+    const position = Number.isFinite(s.positionMs) && s.positionMs >= 0
+      ? s.positionMs
+      : 0;
+
+    const percentage = duration
+      ? Math.min(100, position / duration * 100)
+      : 0;
+
+    put("elapsed", time(position));
+    put("duration", duration ? time(duration) : "--:--");
+
+    const bar = $("progress");
+    if (bar) bar.style.width = percentage + "%";
+
+    const artworkUrl = typeof m.artworkUrl === "string"
+      ? m.artworkUrl
+      : "";
+
+    setArtwork(artworkUrl);
+
+    document.body.dataset.status = status;
+    document.body.dataset.connected = s.connected ? "true" : "false";
+  }
+
+  if (window.NowPlaying && typeof window.NowPlaying.subscribe === "function") {
+    window.NowPlaying.subscribe(snapshot => render(snapshot));
+  }
+})();
+'''

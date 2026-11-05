@@ -1,0 +1,364 @@
+
+[theme]
+id = "pixel-terminal-standard"
+name = "Pixel Terminal"
+family_id = "pixel-terminal"
+version = "1.0.0"
+format_version = 1
+author = "nowplaying"
+description = "Compact green-phosphor audio console with a terminal-inspired playback display"
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 800
+height = 150
+
+[artwork]
+enabled = false
+width = 160
+height = 160
+
+[html]
+template = '''
+<main class="terminal">
+  <header>
+    <div class="brand"><span class="prompt">></span> NPS://AUDIO_SESSION</div>
+    <div class="system">
+      <span class="system-label">SYS</span>
+      <span id="status">WAITING</span>
+      <i class="status-light"></i>
+    </div>
+  </header>
+
+  <section class="display">
+    <div class="track-index">
+      <span class="index-mark">01</span>
+      <span class="index-label">NOW<br>PLAYING</span>
+    </div>
+
+    <div class="metadata">
+      <div class="track-line">
+        <span class="field">TRACK://</span>
+        <strong id="title">Nothing playing</strong>
+      </div>
+      <div class="artist-line">
+        <span class="field">BY</span>
+        <span id="artist">Waiting for player</span>
+      </div>
+      <div class="album-line">
+        <span class="field">FROM</span>
+        <span id="album">—</span>
+      </div>
+    </div>
+
+    <div class="side-info">
+      <span class="side-label">SOURCE</span>
+      <span id="player">NO PLAYER</span>
+      <span class="side-decoration">[ AUDIO ]</span>
+    </div>
+  </section>
+
+  <section class="playback">
+    <div class="progress-label">
+      <span>PLAYBACK</span>
+      <span id="percentage">00%</span>
+    </div>
+    <div class="progress">
+      <div id="progress"></div>
+    </div>
+    <footer>
+      <span class="elapsed"><span class="cursor">></span> <span id="elapsed">0:00</span></span>
+      <span class="meter-label">SIGNAL <span class="signal">████████</span></span>
+      <span id="duration">--:--</span>
+    </footer>
+  </section>
+</main>
+'''
+
+[css]
+stylesheet = '''
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:transparent;
+  color:#b8ffc5;
+  font:11px/1.35 "Courier New",monospace;
+}
+.terminal{
+  width:800px;
+  height:150px;
+  padding:7px 12px 8px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  background:#07130f;
+  border:1px solid #3e9d68;
+  box-shadow:inset 0 0 0 2px #173e2b;
+}
+header{
+  height:23px;
+  flex:none;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:0 5px 5px;
+  border-bottom:1px solid #24573a;
+  color:#73d995;
+  font-size:9px;
+  letter-spacing:1.5px;
+}
+.brand{display:flex;gap:7px;align-items:center}
+.prompt{color:#a1ffb5;font-weight:bold}
+.system{display:flex;align-items:center;gap:8px}
+.system-label{color:#438e62}
+#status{color:#e1d98c}
+.status-light{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#80f49b;
+  box-shadow:0 0 6px #80f49b;
+}
+.display{
+  display:flex;
+  align-items:center;
+  flex:1;
+  min-height:0;
+  gap:17px;
+  padding:10px 5px 7px;
+}
+.track-index{
+  width:49px;
+  flex:none;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  border-right:1px solid #24573a;
+}
+.index-mark{
+  color:#a1ffb5;
+  font-size:23px;
+  line-height:1;
+  text-shadow:0 0 8px rgba(104,255,147,.3);
+}
+.index-label{
+  color:#438e62;
+  font-size:8px;
+  letter-spacing:1px;
+  line-height:1.3;
+}
+.metadata{
+  min-width:0;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.track-line,.artist-line,.album-line{
+  display:flex;
+  align-items:baseline;
+  gap:9px;
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.field{
+  flex:none;
+  color:#438e62;
+  font-size:9px;
+  letter-spacing:.5px;
+}
+.track-line strong{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  color:#c5ffd0;
+  font-size:17px;
+  font-weight:bold;
+  text-shadow:0 0 7px rgba(104,255,147,.22);
+}
+.artist-line span:last-child,.album-line span:last-child{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  color:#8fc99d;
+  font-size:11px;
+}
+.side-info{
+  width:142px;
+  flex:none;
+  height:48px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:4px;
+  padding-left:13px;
+  border-left:1px solid #24573a;
+  overflow:hidden;
+}
+.side-label{
+  color:#438e62;
+  font-size:8px;
+  letter-spacing:1px;
+}
+#player{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#a1e8b2;
+  font-size:10px;
+}
+.side-decoration{
+  color:#397b50;
+  font-size:8px;
+  letter-spacing:2px;
+}
+.playback{
+  flex:none;
+  padding:0 5px;
+}
+.progress-label{
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:4px;
+  color:#438e62;
+  font-size:8px;
+  letter-spacing:1px;
+}
+#percentage{color:#8cf6a7}
+.progress{
+  width:100%;
+  height:8px;
+  padding:1px;
+  border:1px solid #397b50;
+  background:#06100c;
+}
+.progress div{
+  height:100%;
+  width:0;
+  background:repeating-linear-gradient(
+    90deg,
+    #8cf6a7 0 7px,
+    transparent 7px 9px
+  );
+  box-shadow:0 0 5px rgba(140,246,167,.35);
+  transition:width .3s linear;
+}
+footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:4px;
+  color:#5d9c70;
+  font-size:9px;
+}
+.elapsed{color:#a1e8b2}
+.cursor{color:#80f49b}
+.meter-label{color:#438e62;letter-spacing:.5px}
+.signal{color:#5d9c70;letter-spacing:-1px}
+body[data-status="playing"] .status-light{
+  animation:blink 1.4s steps(2,start) infinite;
+}
+body[data-status="paused"] .status-light{
+  background:#e1d98c;
+  box-shadow:0 0 6px #e1d98c;
+  animation:none;
+}
+body[data-connected="false"] .status-light{
+  background:#a65e5e;
+  box-shadow:0 0 6px #a65e5e;
+  animation:none;
+}
+body[data-connected="false"] #status{color:#c77b7b}
+@keyframes blink{to{opacity:.3}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const put = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+
+  const time = ms => {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
+  function render(s) {
+    if (!s) return;
+
+    const m = s.metadata || {};
+    const artists = Array.isArray(m.artists)
+      ? m.artists.filter(x => typeof x === "string" && x.trim()).join(" · ")
+      : "";
+
+    const status = s.connected
+      ? (s.status || "unknown")
+      : "disconnected";
+
+    put(
+      "title",
+      typeof m.title === "string" && m.title.trim()
+        ? m.title
+        : "Nothing playing"
+    );
+
+    put(
+      "artist",
+      artists || (s.connected ? "Unknown artist" : "Waiting for player")
+    );
+
+    put(
+      "album",
+      typeof m.album === "string" && m.album.trim()
+        ? m.album
+        : "—"
+    );
+
+    put("status", status.toUpperCase());
+    put(
+      "player",
+      s.player && s.player.identity
+        ? s.player.identity
+        : "NO PLAYER"
+    );
+
+    const duration =
+      Number.isFinite(s.durationMs) && s.durationMs > 0
+        ? s.durationMs
+        : 0;
+
+    const position =
+      Number.isFinite(s.positionMs) && s.positionMs >= 0
+        ? s.positionMs
+        : 0;
+
+    const percentage = duration
+      ? Math.min(100, position / duration * 100)
+      : 0;
+
+    put("elapsed", time(position));
+    put("duration", duration ? time(duration) : "--:--");
+    put("percentage", String(Math.round(percentage)).padStart(2, "0") + "%");
+
+    const bar = $("progress");
+    if (bar) bar.style.width = percentage + "%";
+
+    document.body.dataset.status = status;
+    document.body.dataset.connected = s.connected ? "true" : "false";
+  }
+
+  if (window.NowPlaying && typeof window.NowPlaying.subscribe === "function") {
+    window.NowPlaying.subscribe(render);
+  }
+})();
+'''

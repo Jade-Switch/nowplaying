@@ -1,0 +1,394 @@
+
+[theme]
+id = "pixel-arcade-standard"
+name = "Pixel Arcade"
+version = "1.1.0"
+format_version = 1
+author = "nowplaying"
+description = "Arcade cabinet display with cartridge art and score-style meter"
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 800
+height = 150
+
+[artwork]
+enabled = true
+width = 160
+height = 160
+
+[html]
+template = '''
+<main class="arcade">
+  <header>
+    <span>♪ PLAYER 1</span>
+    <b>JUKEBOX MODE</b>
+    <span id="status">READY</span>
+  </header>
+
+  <div class="cabinet">
+    <div class="cart">
+      <div class="cart-art">
+        <img id="artwork" alt="Album artwork" hidden>
+        <div id="art-fallback" class="fallback">♫</div>
+      </div>
+      <small>SIDE A</small>
+    </div>
+
+    <section>
+      <div class="track-info">
+        <h1 id="title">Nothing playing</h1>
+        <p id="artist">Waiting for player</p>
+        <p id="album"></p>
+      </div>
+
+      <div class="playback">
+        <div class="score">
+          <span>PLAYBACK</span>
+          <span id="elapsed">0:00</span>
+          <span id="duration">--:--</span>
+        </div>
+
+        <div class="segments">
+          <div id="progress"></div>
+        </div>
+      </div>
+
+      <footer id="player">NO PLAYER</footer>
+    </section>
+  </div>
+</main>
+'''
+
+[css]
+stylesheet = '''
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+  color: #fff4e9;
+  font: 12px/1.4 "Courier New", monospace;
+}
+
+.arcade {
+  width: 800px;
+  height: 150px;
+  padding: 5px;
+  background: #21152e;
+  border: 4px solid #f1c34b;
+  box-shadow: inset 0 0 0 3px #7c3c91;
+  overflow: hidden;
+}
+
+header {
+  height: 24px;
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #44205a;
+  color: #ffd86d;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+header b {
+  color: #ff76aa;
+  font-weight: bold;
+}
+
+.cabinet {
+  height: 105px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 12px;
+  background: #2b1d42;
+}
+
+.cart {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  flex: none;
+  padding: 5px;
+  background: #f1c34b;
+  box-shadow: 4px 4px 0 #100b1a;
+}
+
+.cart-art {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #4d2a66;
+}
+
+.cart-art img,
+.cart-art .fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.cart-art img[hidden],
+.cart-art .fallback[hidden] {
+  display: none !important;
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  background: #4d2a66;
+  color: #ffdf77;
+  font-size: 32px;
+}
+
+.cart small {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: #21152e;
+  color: #ffd86d;
+  font-size: 7px;
+  padding: 2px 4px;
+  letter-spacing: 1px;
+}
+
+section {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.track-info {
+  min-width: 0;
+}
+
+h1 {
+  font-size: 19px;
+  line-height: 1.15;
+  color: #ffdf77;
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 2px 2px #a43e82;
+}
+
+#artist {
+  margin: 0;
+  color: #f4b4d1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#album {
+  font-size: 9px;
+  color: #b69bc8;
+  margin: 3px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playback {
+  margin-top: 7px;
+}
+
+.score {
+  display: flex;
+  justify-content: space-between;
+  color: #8ee8d3;
+  font-size: 8px;
+}
+
+.segments {
+  height: 11px;
+  padding: 2px;
+  border: 2px solid #f1c34b;
+  background: #140e20;
+  margin-top: 3px;
+}
+
+.segments div {
+  height: 100%;
+  width: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    #8ee8d3 0 9px,
+    #2e9c94 9px 11px
+  );
+  transition: width 0.3s linear;
+}
+
+footer {
+  text-align: right;
+  color: #9f8ab8;
+  font-size: 8px;
+  margin-top: 4px;
+}
+
+body[data-status="playing"] header b {
+  animation: arcade-glow 2s ease-in-out infinite;
+}
+
+body[data-status="paused"] header b {
+  color: #8ee8d3;
+}
+
+body[data-status="disconnected"] header b {
+  color: #9f8ab8;
+}
+
+@keyframes arcade-glow {
+  0%, 100% {
+    text-shadow: 0 0 2px #ff76aa;
+  }
+  50% {
+    text-shadow: 0 0 8px #ff76aa, 0 0 14px #a43e82;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-status="playing"] header b {
+    animation: none;
+  }
+
+  .segments div {
+    transition: none;
+  }
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const put = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+
+  const time = ms => {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
+  let requestedArtwork = null;
+
+  function setArtwork(url) {
+    const img = $("artwork");
+    const fallback = $("art-fallback");
+
+    if (!img || !fallback || url === requestedArtwork) return;
+
+    requestedArtwork = url;
+    img.onload = null;
+    img.onerror = null;
+    img.hidden = true;
+    fallback.hidden = false;
+
+    if (!url) {
+      img.removeAttribute("src");
+      return;
+    }
+
+    img.onload = () => {
+      if (requestedArtwork !== url) return;
+      img.hidden = false;
+      fallback.hidden = true;
+    };
+
+    img.onerror = () => {
+      if (requestedArtwork !== url) return;
+      img.hidden = true;
+      fallback.hidden = false;
+    };
+
+    img.src = url;
+  }
+
+  function render(s) {
+    if (!s) return;
+
+    const m = s.metadata || {};
+
+    const artists = Array.isArray(m.artists)
+      ? m.artists
+          .filter(x => typeof x === "string" && x.trim())
+          .join(" · ")
+      : "";
+
+    const status = s.connected
+      ? (s.status || "unknown")
+      : "disconnected";
+
+    put(
+      "title",
+      typeof m.title === "string" && m.title.trim()
+        ? m.title
+        : "Nothing playing"
+    );
+
+    put(
+      "artist",
+      artists || (s.connected ? "Unknown artist" : "Waiting for player")
+    );
+
+    put("album", typeof m.album === "string" ? m.album : "");
+    put("status", status.toUpperCase());
+
+    put(
+      "player",
+      s.player && s.player.identity
+        ? s.player.identity
+        : "NO PLAYER"
+    );
+
+    const duration = Number.isFinite(s.durationMs) && s.durationMs > 0
+      ? s.durationMs
+      : 0;
+
+    const position = Number.isFinite(s.positionMs) && s.positionMs >= 0
+      ? s.positionMs
+      : 0;
+
+    const percentage = duration
+      ? Math.min(100, position / duration * 100)
+      : 0;
+
+    put("elapsed", time(position));
+    put("duration", duration ? time(duration) : "--:--");
+
+    const bar = $("progress");
+    if (bar) bar.style.width = percentage + "%";
+
+    const artworkUrl = typeof m.artworkUrl === "string"
+      ? m.artworkUrl
+      : "";
+
+    setArtwork(artworkUrl);
+
+    document.body.dataset.status = status;
+    document.body.dataset.connected = s.connected ? "true" : "false";
+  }
+
+  if (window.NowPlaying && typeof window.NowPlaying.subscribe === "function") {
+    window.NowPlaying.subscribe(snapshot => render(snapshot));
+  }
+})();
+'''

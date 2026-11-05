@@ -1,0 +1,305 @@
+
+[theme]
+id = "editorial-standard"
+name = "Editorial"
+version = "1.1.0"
+format_version = 1
+author = "nowplaying"
+description = "Magazine-inspired music overlay focused on typography"
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 800
+height = 150
+
+[artwork]
+enabled = true
+width = 160
+height = 160
+
+[html]
+template = '''
+<main class="editorial">
+  <header class="mast">
+    <span>THE LISTENING EDITION</span>
+    <span id="status">WAITING</span>
+  </header>
+
+  <div class="content">
+    <section class="details">
+      <div class="label">NOW SPINNING <i></i></div>
+      <h1 id="title">Nothing playing</h1>
+      <p id="artist">Waiting for player</p>
+      <div class="meta">
+        <span id="album"></span>
+        <span id="player">NO PLAYER</span>
+      </div>
+    </section>
+
+    <div class="art">
+      <img id="artwork" alt="Album artwork" hidden>
+      <div id="art-fallback" class="fallback">♪</div>
+    </div>
+  </div>
+
+  <div class="progress-track">
+    <div id="progress"></div>
+  </div>
+
+  <footer>
+    <span id="elapsed">0:00</span>
+    <span id="duration">--:--</span>
+  </footer>
+</main>
+'''
+
+[css]
+stylesheet = '''
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+  color: #f3eee6;
+  font: 13px/1.4 "Segoe UI", sans-serif;
+}
+
+.editorial {
+  width: 800px;
+  height: 150px;
+  padding: 9px 16px 7px;
+  background: rgba(24, 25, 26, 0.94);
+  border-top: 2px solid #e6d6b7;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mast {
+  display: flex;
+  justify-content: space-between;
+  color: #c9bda9;
+  font-size: 8px;
+  letter-spacing: 2px;
+  border-bottom: 1px solid #514b43;
+  padding-bottom: 5px;
+  flex: none;
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 7px 0 6px;
+  flex: 1;
+  min-height: 0;
+}
+
+.details {
+  min-width: 0;
+  flex: 1;
+}
+
+.label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #c7a77c;
+  font-size: 8px;
+  letter-spacing: 2px;
+}
+
+.label i {
+  height: 1px;
+  background: #6e5d4b;
+  flex: 1;
+}
+
+h1 {
+  font: italic 27px/1.05 Georgia, serif;
+  margin: 5px 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+p {
+  margin: 0;
+  color: #d2c7b7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  margin-top: 7px;
+  color: #998d7c;
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.art {
+  width: 112px;
+  height: 112px;
+  flex: none;
+  border: 1px solid #c7a77c;
+  padding: 3px;
+  position: relative;
+  background: #3b3833;
+}
+
+.art img,
+.fallback {
+  position: absolute;
+  inset: 3px;
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  object-fit: cover;
+}
+
+.art img[hidden],
+.fallback[hidden] {
+  display: none !important;
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  color: #d9bd91;
+  font-size: 32px;
+}
+
+.progress-track {
+  height: 2px;
+  background: #514b43;
+  flex: none;
+}
+
+.progress-track div {
+  height: 100%;
+  width: 0;
+  background: #e2c69c;
+  transition: width 0.3s linear;
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  color: #8f867a;
+  font-size: 8px;
+  margin-top: 3px;
+  flex: none;
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const put = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+
+  const time = ms => {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
+  let requestedArtwork = null;
+
+  function setArtwork(url) {
+    const img = $("artwork");
+    const fallback = $("art-fallback");
+
+    if (!img || !fallback || url === requestedArtwork) return;
+
+    requestedArtwork = url;
+    img.onload = null;
+    img.onerror = null;
+    img.hidden = true;
+    fallback.hidden = false;
+
+    if (!url) {
+      img.removeAttribute("src");
+      return;
+    }
+
+    img.onload = () => {
+      if (requestedArtwork !== url) return;
+      img.hidden = false;
+      fallback.hidden = true;
+    };
+
+    img.onerror = () => {
+      if (requestedArtwork !== url) return;
+      img.hidden = true;
+      fallback.hidden = false;
+    };
+
+    img.src = url;
+  }
+
+  function render(s) {
+    if (!s) return;
+
+    const m = s.metadata || {};
+    const artists = Array.isArray(m.artists)
+      ? m.artists.filter(x => typeof x === "string" && x.trim()).join(" · ")
+      : "";
+
+    const status = s.connected ? (s.status || "unknown") : "disconnected";
+
+    put("title", typeof m.title === "string" && m.title.trim()
+      ? m.title
+      : "Nothing playing");
+
+    put("artist", artists || (s.connected ? "Unknown artist" : "Waiting for player"));
+    put("album", typeof m.album === "string" ? m.album : "");
+    put("status", status.toUpperCase());
+    put("player", s.player && s.player.identity ? s.player.identity : "NO PLAYER");
+
+    const duration = Number.isFinite(s.durationMs) && s.durationMs > 0
+      ? s.durationMs
+      : 0;
+
+    const position = Number.isFinite(s.positionMs) && s.positionMs >= 0
+      ? s.positionMs
+      : 0;
+
+    put("elapsed", time(position));
+    put("duration", duration ? time(duration) : "--:--");
+
+    const bar = $("progress");
+    if (bar) {
+      bar.style.width = (duration
+        ? Math.min(100, position / duration * 100)
+        : 0) + "%";
+    }
+
+    const artworkUrl = typeof m.artworkUrl === "string" ? m.artworkUrl : "";
+    setArtwork(artworkUrl);
+
+    document.body.dataset.status = status;
+    document.body.dataset.connected = s.connected ? "true" : "false";
+  }
+
+  if (window.NowPlaying && typeof window.NowPlaying.subscribe === "function") {
+    window.NowPlaying.subscribe(snapshot => render(snapshot));
+  }
+})();
+'''

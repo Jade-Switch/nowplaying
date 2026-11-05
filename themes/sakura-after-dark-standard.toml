@@ -1,0 +1,725 @@
+[theme]
+id = "sakura-after-dark-standard"
+name = "Sakura After Dark"
+family_id = "sakura-after-dark"
+version = "1.1.0"
+format_version = 1
+author = "nowplaying"
+description = "A neon-lit midnight listening room with drifting sakura petals and cinematic playback animations"
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 800
+height = 150
+
+[artwork]
+enabled = true
+width = 160
+height = 160
+
+[html]
+template = '''
+<main class="night">
+  <div class="city-glow"></div>
+  <div class="cityline"></div>
+
+  <div class="petals" aria-hidden="true">
+    <span class="petal p1">✿</span>
+    <span class="petal p2">✧</span>
+    <span class="petal p3">✿</span>
+    <span class="petal p4">✿</span>
+    <span class="petal p5">✧</span>
+    <span class="petal p6">✿</span>
+  </div>
+
+  <div class="art-frame">
+    <div class="art-accent"></div>
+    <img id="artwork" alt="Album artwork" hidden>
+    <div id="art-fallback" class="cover fallback">花</div>
+    <div class="art-reflection"></div>
+  </div>
+
+  <section class="content">
+    <header class="top">
+      <div class="location">
+        <span class="location-dot"></span>
+        <span>TOKYO / AFTER DARK</span>
+      </div>
+      <span id="status" class="status">WAITING</span>
+    </header>
+
+    <div class="track-info">
+      <h1 id="title">Nothing playing</h1>
+      <p id="artist">Waiting for player</p>
+      <p id="album"></p>
+    </div>
+
+    <div class="playback">
+      <div class="track">
+        <div id="progress"></div>
+        <span class="track-marker"></span>
+      </div>
+      <footer>
+        <span id="player">NO PLAYER</span>
+        <div class="times">
+          <span id="elapsed">0:00</span>
+          <span class="time-divider">/</span>
+          <span id="duration">--:--</span>
+        </div>
+      </footer>
+    </div>
+  </section>
+
+  <div class="side-label">桜 · 夜</div>
+</main>
+'''
+
+[css]
+stylesheet = '''
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+  color: #f8edf5;
+  font: 13px/1.4 "Segoe UI", sans-serif;
+}
+
+.night {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  width: 800px;
+  height: 150px;
+  padding: 15px 30px;
+  overflow: hidden;
+  background:
+    linear-gradient(105deg, rgba(12,16,35,.98), rgba(27,21,46,.97) 58%, rgba(37,22,51,.96));
+  border-left: 3px solid #e99cbe;
+  border-bottom: 1px solid rgba(233,156,190,.2);
+  box-shadow: inset 0 0 40px rgba(8,10,27,.5);
+}
+
+/* Ambient city lighting */
+
+.city-glow {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 85% 15%, rgba(175,91,153,.2), transparent 42%),
+    radial-gradient(ellipse at 50% 110%, rgba(75,89,158,.2), transparent 55%),
+    linear-gradient(90deg, transparent 35%, rgba(113,82,143,.07) 100%);
+  pointer-events: none;
+}
+
+.cityline {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  bottom: 0;
+  width: 47%;
+  height: 48px;
+  opacity: .2;
+  background:
+    linear-gradient(to top, rgba(8,10,27,.9), transparent),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 13px,
+      rgba(173,126,174,.28) 13px 15px,
+      transparent 15px 28px
+    );
+  clip-path: polygon(
+    0 100%, 0 55%, 5% 55%, 5% 28%, 9% 28%, 9% 65%,
+    15% 65%, 15% 42%, 20% 42%, 20% 12%, 25% 12%,
+    25% 70%, 33% 70%, 33% 35%, 39% 35%, 39% 58%,
+    46% 58%, 46% 20%, 52% 20%, 52% 68%, 60% 68%,
+    60% 40%, 66% 40%, 66% 8%, 72% 8%, 72% 65%,
+    80% 65%, 80% 32%, 87% 32%, 87% 58%,
+    93% 58%, 93% 22%, 100% 22%, 100% 100%
+  );
+}
+
+/* Artwork */
+
+.art-frame {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  width: 116px;
+  height: 116px;
+  padding: 5px;
+  border: 1px solid rgba(231,157,194,.55);
+  background: rgba(15,17,37,.8);
+  box-shadow:
+    0 0 0 3px rgba(231,157,194,.07),
+    0 0 24px rgba(206,113,169,.17);
+  animation: artwork-arrive .9s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.art-frame::before,
+.art-frame::after {
+  content: "";
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-color: #f0a8c7;
+  border-style: solid;
+  pointer-events: none;
+}
+
+.art-frame::before {
+  top: -3px;
+  left: -3px;
+  border-width: 1px 0 0 1px;
+}
+
+.art-frame::after {
+  right: -3px;
+  bottom: -3px;
+  border-width: 0 1px 1px 0;
+}
+
+#artwork,
+.cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#artwork[hidden],
+.fallback[hidden] {
+  display: none !important;
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 45%, #60405e, #28243f 70%);
+  color: #f1b1ce;
+  font-family: serif;
+  font-size: 43px;
+}
+
+.art-reflection {
+  position: absolute;
+  inset: 5px;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,.13),
+    transparent 35%,
+    transparent 75%,
+    rgba(235,160,198,.1)
+  );
+}
+
+/* Main content */
+
+.content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 116px;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 15px;
+  color: #dca5c0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+.location {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.location-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #eaa2c3;
+  box-shadow: 0 0 9px rgba(234,162,195,.9);
+}
+
+.status {
+  color: #a99ab9;
+  letter-spacing: 1.5px;
+  transition: color .5s ease;
+}
+
+.track-info {
+  min-width: 0;
+  margin-top: 1px;
+}
+
+h1 {
+  margin: 0 0 3px;
+  overflow: hidden;
+  color: #fff2f8;
+  font-size: 23px;
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: .2px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 18px rgba(235,158,195,.12);
+}
+
+#artist {
+  margin: 0;
+  overflow: hidden;
+  color: #d4c3d5;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#album {
+  min-height: 13px;
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: #9387aa;
+  font-size: 10px;
+  letter-spacing: .4px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Playback */
+
+.playback {
+  min-width: 0;
+}
+
+.track {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  overflow: visible;
+  background: rgba(174,145,177,.22);
+}
+
+.track > div {
+  position: relative;
+  z-index: 1;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #bd83b6, #f2a9c9);
+  box-shadow: 0 0 10px rgba(239,157,198,.45);
+  transition: width .35s linear;
+}
+
+.track-marker {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border: 1px solid #ffe2ee;
+  border-radius: 50%;
+  background: #eaa5c4;
+  box-shadow: 0 0 8px rgba(239,157,198,.8);
+  transform: translate(-50%, -50%);
+  transition: left .35s linear;
+}
+
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 6px;
+  color: #9d91ad;
+  font-size: 9px;
+  letter-spacing: .6px;
+}
+
+#player {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.times {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  color: #d8c2d5;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.time-divider {
+  color: #786d8e;
+}
+
+/* Decorative sakura */
+
+.petals {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.petal {
+  position: absolute;
+  display: block;
+  color: rgba(244,171,205,.7);
+  text-shadow: 0 0 12px rgba(232,139,185,.45);
+  opacity: 0;
+  animation: petal-drift linear infinite;
+}
+
+.p1 {
+  left: 38%;
+  top: -18px;
+  font-size: 15px;
+  animation-duration: 13s;
+  animation-delay: -7s;
+  --drift: 65px;
+  --spin: 240deg;
+}
+
+.p2 {
+  left: 54%;
+  top: -22px;
+  font-size: 10px;
+  animation-duration: 17s;
+  animation-delay: -12s;
+  --drift: -35px;
+  --spin: -180deg;
+}
+
+.p3 {
+  left: 70%;
+  top: -16px;
+  font-size: 19px;
+  animation-duration: 15s;
+  animation-delay: -4s;
+  --drift: 48px;
+  --spin: 300deg;
+}
+
+.p4 {
+  left: 88%;
+  top: -25px;
+  font-size: 12px;
+  animation-duration: 19s;
+  animation-delay: -15s;
+  --drift: -55px;
+  --spin: -260deg;
+}
+
+.p5 {
+  left: 46%;
+  top: -20px;
+  font-size: 9px;
+  animation-duration: 21s;
+  animation-delay: -9s;
+  --drift: 30px;
+  --spin: 180deg;
+}
+
+.p6 {
+  left: 77%;
+  top: -25px;
+  font-size: 13px;
+  animation-duration: 16s;
+  animation-delay: -2s;
+  --drift: -28px;
+  --spin: 320deg;
+}
+
+/* Playback state */
+
+body[data-status="playing"] .status {
+  color: #f0a6c7;
+}
+
+body[data-status="paused"] .status {
+  color: #d6b5d0;
+}
+
+body[data-status="disconnected"] .status,
+body[data-status="stopped"] .status {
+  color: #8c829d;
+}
+
+body[data-status="playing"] .petal {
+  animation-play-state: running;
+}
+
+body:not([data-status="playing"]) .petal {
+  animation-play-state: paused;
+}
+
+body[data-status="playing"] .track > div {
+  box-shadow: 0 0 12px rgba(239,157,198,.6);
+}
+
+/* One-time entrance when playback starts */
+
+.night.start-burst .art-frame {
+  animation: artwork-start .85s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.night.start-burst .content {
+  animation: content-arrive .7s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.night.start-burst .location-dot {
+  animation: dot-flash .8s ease-out both;
+}
+
+/* Animations */
+
+@keyframes petal-drift {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) rotate(0deg);
+  }
+  12% {
+    opacity: .8;
+  }
+  50% {
+    transform: translate3d(var(--drift), 75px, 0) rotate(var(--spin));
+  }
+  85% {
+    opacity: .55;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(var(--drift) * -0.4), 165px, 0) rotate(calc(var(--spin) * -1));
+  }
+}
+
+@keyframes artwork-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(9px) scale(.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes artwork-start {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px rgba(231,157,194,.07), 0 0 24px rgba(206,113,169,.17);
+  }
+  45% {
+    transform: scale(1.035);
+    box-shadow: 0 0 0 5px rgba(231,157,194,.12), 0 0 32px rgba(230,133,184,.4);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px rgba(231,157,194,.07), 0 0 24px rgba(206,113,169,.17);
+  }
+}
+
+@keyframes content-arrive {
+  from {
+    opacity: .45;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes dot-flash {
+  0% {
+    box-shadow: 0 0 0 rgba(234,162,195,0);
+  }
+  40% {
+    box-shadow: 0 0 14px 4px rgba(234,162,195,.65);
+  }
+  100% {
+    box-shadow: 0 0 9px rgba(234,162,195,.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const put = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+
+  const time = ms => {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
+  let previousStatus = null;
+  let requestedArtwork = null;
+  let artworkRequest = 0;
+
+  function setArtwork(url) {
+    const img = $("artwork");
+    const fallback = $("art-fallback");
+
+    if (!img || !fallback) return;
+
+    if (!url) {
+      requestedArtwork = null;
+      artworkRequest++;
+      img.onload = null;
+      img.onerror = null;
+      img.removeAttribute("src");
+      img.hidden = true;
+      fallback.hidden = false;
+      return;
+    }
+
+    if (url === requestedArtwork) return;
+
+    requestedArtwork = url;
+    const request = ++artworkRequest;
+
+    img.onload = () => {
+      if (request !== artworkRequest) return;
+      img.hidden = false;
+      fallback.hidden = true;
+    };
+
+    img.onerror = () => {
+      if (request !== artworkRequest) return;
+      img.hidden = true;
+      fallback.hidden = false;
+    };
+
+    img.hidden = true;
+    fallback.hidden = false;
+    img.src = url;
+  }
+
+  function render(snapshot) {
+    if (!snapshot) return;
+
+    const metadata = snapshot.metadata || {};
+    const artists = Array.isArray(metadata.artists)
+      ? metadata.artists
+          .filter(value => typeof value === "string" && value.trim())
+          .join(" · ")
+      : "";
+
+    const status = snapshot.connected
+      ? (snapshot.status || "unknown")
+      : "disconnected";
+
+    const title = typeof metadata.title === "string" && metadata.title.trim()
+      ? metadata.title
+      : "Nothing playing";
+
+    put("title", title);
+    put(
+      "artist",
+      artists || (snapshot.connected ? "Unknown artist" : "Waiting for player")
+    );
+    put("album", typeof metadata.album === "string" ? metadata.album : "");
+    put("status", status.toUpperCase());
+    put(
+      "player",
+      snapshot.player && snapshot.player.identity
+        ? snapshot.player.identity
+        : "NO PLAYER"
+    );
+
+    const duration = Number.isFinite(snapshot.durationMs) && snapshot.durationMs > 0
+      ? snapshot.durationMs
+      : 0;
+
+    const position = Number.isFinite(snapshot.positionMs) && snapshot.positionMs >= 0
+      ? snapshot.positionMs
+      : 0;
+
+    const percentage = duration
+      ? Math.min(100, position / duration * 100)
+      : 0;
+
+    put("elapsed", time(position));
+    put("duration", duration ? time(duration) : "--:--");
+
+    const progress = $("progress");
+    const marker = document.querySelector(".track-marker");
+
+    if (progress) progress.style.width = percentage + "%";
+    if (marker) marker.style.left = percentage + "%";
+
+    setArtwork(
+      typeof metadata.artworkUrl === "string"
+        ? metadata.artworkUrl
+        : ""
+    );
+
+    document.body.dataset.status = status;
+    document.body.dataset.connected = snapshot.connected ? "true" : "false";
+
+    const night = document.querySelector(".night");
+
+    if (night && status === "playing" && previousStatus !== "playing") {
+      night.classList.remove("start-burst");
+      void night.offsetWidth;
+      night.classList.add("start-burst");
+    }
+
+    previousStatus = status;
+  }
+
+  const night = document.querySelector(".night");
+
+  if (night) {
+    night.addEventListener("animationend", event => {
+      if (event.animationName === "content-arrive") {
+        night.classList.remove("start-burst");
+      }
+    });
+  }
+
+  if (window.NowPlaying && typeof window.NowPlaying.subscribe === "function") {
+    window.NowPlaying.subscribe(render);
+  }
+})();
+'''

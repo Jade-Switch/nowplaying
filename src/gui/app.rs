@@ -93,6 +93,8 @@ pub struct GuiContext {
     pub themes: ThemeManager,
     pub catalog: ThemeDiscovery,
     pub active_theme: Option<String>,
+    pub active_theme_ids: Vec<String>,
+    pub active_theme_limit: usize,
     pub family_selections: BTreeMap<String, String>,
     pub playback_state: Option<tokio::sync::watch::Receiver<PlaybackSnapshot>>,
     pub players_state: Option<tokio::sync::watch::Receiver<Vec<PlayerInfo>>>,
@@ -111,6 +113,10 @@ pub struct GuiContext {
 enum Message {
     Navigate(Section),
     SelectTheme(String),
+    ToggleTheme(String),
+    ThemeToggled(Result<(String, bool, Vec<String>), String>),
+    ActiveLimitChanged(usize),
+    ActiveLimitSaved(Result<usize, String>),
     ThemeSelected(Result<String, String>),
     RefreshThemes,
     ThemesRefreshed(Result<(ThemeDiscovery, Option<String>), String>),
@@ -156,6 +162,8 @@ struct App {
     themes: ThemeManager,
     catalog: ThemeDiscovery,
     active_theme: Option<String>,
+    active_theme_ids: Vec<String>,
+    active_theme_limit: usize,
     family_selections: BTreeMap<String, String>,
     playback_state: Option<tokio::sync::watch::Receiver<PlaybackSnapshot>>,
     players_state: Option<tokio::sync::watch::Receiver<Vec<PlayerInfo>>>,
@@ -195,6 +203,8 @@ impl App {
             themes,
             catalog,
             active_theme,
+            active_theme_ids,
+            active_theme_limit,
             mut family_selections,
             playback_state,
             players_state,
@@ -238,6 +248,8 @@ impl App {
             themes,
             catalog,
             active_theme,
+            active_theme_ids,
+            active_theme_limit,
             family_selections,
             playback_state,
             players_state,
@@ -290,6 +302,54 @@ impl App {
                     },
                     Message::ThemeSelected,
                 )
+            }
+            Message::ToggleTheme(id) => {
+                let themes = self.themes.clone();
+                Task::perform(
+                    async move {
+                        let activated =
+                            themes.toggle_active(&id).await.map_err(|e| e.to_string())?;
+                        Ok((id, activated, themes.active_ids().await))
+                    },
+                    Message::ThemeToggled,
+                )
+            }
+            Message::ThemeToggled(result) => {
+                match result {
+                    Ok((id, activated, active_ids)) => {
+                        self.active_theme_ids = active_ids;
+                        self.status_message = Some(if activated {
+                            format!("Activated {id}.")
+                        } else {
+                            format!("Deactivated {id}.")
+                        });
+                    }
+                    Err(error) => self.status_message = Some(error),
+                }
+                Task::none()
+            }
+            Message::ActiveLimitChanged(limit) => {
+                let themes = self.themes.clone();
+                Task::perform(
+                    async move {
+                        themes
+                            .set_active_limit(limit)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        Ok(limit)
+                    },
+                    Message::ActiveLimitSaved,
+                )
+            }
+            Message::ActiveLimitSaved(result) => {
+                match result {
+                    Ok(limit) => {
+                        self.active_theme_limit = limit;
+                        self.status_message = Some("Active-theme limit saved.".to_owned());
+                    }
+                    Err(error) => self.status_message = Some(error),
+                }
+                Task::none()
             }
             Message::ThemeSelected(result) => {
                 match result {
@@ -485,27 +545,12 @@ impl App {
                         return Task::none();
                     }
                 };
-                let family_id = self
-                    .catalog
-                    .themes
-                    .get(&id)
-                    .and_then(|theme| theme.document.theme.family_id.as_ref());
-                if let Some(family_id) = family_id {
-                    let Ok(mut segments) = url.path_segments_mut() else {
-                        self.status_message =
-                            Some("Could not build the theme preview URL.".to_owned());
-                        return Task::none();
-                    };
-                    segments.clear().push("preview-family").push(family_id);
-                } else if self.active_theme.as_deref() != Some(id.as_str()) {
-                    let Ok(mut segments) = url.path_segments_mut() else {
-                        self.status_message =
-                            Some("Could not build the theme preview URL.".to_owned());
-                        return Task::none();
-                    };
-                    segments.clear().push("preview").push(&id);
-                    drop(segments);
-                }
+                let Ok(mut segments) = url.path_segments_mut() else {
+                    self.status_message = Some("Could not build the theme preview URL.".to_owned());
+                    return Task::none();
+                };
+                segments.clear().push("preview").push(&id);
+                drop(segments);
                 let url = url.to_string();
                 Task::perform(
                     async move {
@@ -1011,6 +1056,28 @@ impl App {
     }
 
     fn settings_page(&self) -> Element<'_, Message> {
+        let mut limit_controls = row![].spacing(design::spacing::SM);
+        for limit in [1usize, 2, 3, 4, 5, 0] {
+            let label = if limit == 0 {
+                "Unlimited".to_owned()
+            } else {
+                limit.to_string()
+            };
+            limit_controls = limit_controls.push(
+                button(text(if self.active_theme_limit == limit {
+                    format!("✓ {label}")
+                } else {
+                    label
+                }))
+                .padding([design::spacing::SM, design::spacing::MD])
+                .style(if self.active_theme_limit == limit {
+                    design::primary_button
+                } else {
+                    design::secondary_button
+                })
+                .on_press(Message::ActiveLimitChanged(limit)),
+            );
+        }
         let content = column![
             column![
                 text("Settings")
@@ -1046,6 +1113,13 @@ impl App {
             .padding(design::spacing::LG)
             .width(Length::Fill)
             .style(|_| design::surface()),
+            container(column![
+                text("MAXIMUM ACTIVE THEMES").size(design::typography::CAPTION).color(design::TEXT_SECONDARY),
+                limit_controls,
+                text("Lowering this limit keeps currently active themes and blocks new activations until there is room.")
+                    .size(design::typography::CAPTION).color(design::TEXT_SECONDARY),
+            ].spacing(design::spacing::SM))
+            .padding(design::spacing::LG).width(Length::Fill).style(|_| design::surface()),
             container(
                 column![
                     text("STARTUP")
@@ -1108,15 +1182,15 @@ impl App {
             .themes
             .get(&id)
             .expect("theme selector group references a discovered theme");
-        let is_active = self.active_theme.as_deref() == Some(id.as_str());
-        let select = button(text(if is_active { "Active" } else { "Select" }))
+        let is_active = self.active_theme_ids.contains(&id);
+        let select = button(text(if is_active { "Deactivate" } else { "Activate" }))
             .padding([design::spacing::SM, design::spacing::LG])
             .style(if is_active {
                 design::secondary_button
             } else {
                 design::primary_button
             })
-            .on_press_maybe((!is_active).then(|| Message::SelectTheme(id.clone())));
+            .on_press(Message::ToggleTheme(id.clone()));
         let actions: Element<'a, Message> = if self.confirming_delete.as_deref() == Some(&id) {
             row![
                 text("Delete this theme?").color(design::TEXT_SECONDARY),
@@ -1135,10 +1209,14 @@ impl App {
         } else {
             row![
                 select,
-                button(text("Preview"))
-                    .padding([design::spacing::SM, design::spacing::MD])
-                    .style(design::secondary_button)
-                    .on_press(Message::PreviewTheme(id.clone())),
+                button(text(if is_active {
+                    "Preview"
+                } else {
+                    "Activate to preview"
+                }))
+                .padding([design::spacing::SM, design::spacing::MD])
+                .style(design::secondary_button)
+                .on_press_maybe(is_active.then(|| Message::PreviewTheme(id.clone()))),
                 button(text("Edit"))
                     .padding([design::spacing::SM, design::spacing::MD])
                     .style(design::secondary_button)

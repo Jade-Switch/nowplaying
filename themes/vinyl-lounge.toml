@@ -1,0 +1,401 @@
+[theme]
+id = "vinyl-lounge"
+name = "Vinyl Lounge"
+version = "1.0.0"
+format_version = 1
+author = "nowplaying"
+description = "A full album cover transformed into a slowly spinning vinyl record"
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 800
+height = 150
+
+[artwork]
+enabled = true
+width = 160
+height = 160
+
+[html]
+template = '''
+<main class="card">
+  <div class="turntable">
+    <div class="record">
+      <img id="artwork" alt="Album artwork" hidden>
+      <div id="art-fallback" class="fallback">♫</div>
+      <div class="grooves"></div>
+      <div class="rim"></div>
+      <div class="center-label">
+      <div class="spindle-hole"></div>
+    </div>
+      <div class="spindle"></div>
+    </div>
+  </div>
+
+  <section>
+    <small><span id="status">WAITING</span> · <span id="player">NO PLAYER</span></small>
+    <h1 id="title">Nothing playing</h1>
+    <p id="artist">Waiting for player</p>
+    <p id="album"></p>
+    <div class="line"><div id="progress"></div></div>
+    <footer>
+      <span id="elapsed">0:00</span>
+      <span id="duration">--:--</span>
+    </footer>
+  </section>
+
+  <div class="edition" aria-hidden="true">STEREO<br><span>33⅓ RPM</span></div>
+</main>
+'''
+
+[css]
+stylesheet = '''
+*{box-sizing:border-box}
+html,body{width:800px;height:150px;margin:0;overflow:hidden}
+body{background:transparent;color:#30231c;font:14px/1.4 Georgia,serif}
+
+.card{
+ position:relative;
+ display:flex;
+ align-items:center;
+ gap:30px;
+ width:800px;
+ height:150px;
+ padding:12px 27px;
+ background:rgba(244,232,210,.97);
+ border:1px solid #c7ad88;
+ overflow:hidden;
+}
+
+.turntable{
+ width:142px;
+ height:142px;
+ flex:none;
+ display:grid;
+ place-items:center;
+}
+
+.record{
+ position:relative;
+ width:126px;
+ height:126px;
+ flex:none;
+ border-radius:50%;
+ overflow:hidden;
+ background:#25211e;
+ box-shadow:0 4px 12px #6b513b66;
+ animation:spin 20s linear infinite;
+ animation-play-state:paused;
+}
+
+.center-label {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #050505;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.65),
+    inset 0 0 5px rgba(255, 255, 255, 0.08);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.spindle-hole {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #777;
+  box-shadow: inset 0 0 1px #000;
+}
+
+body[data-status="playing"] .record{
+ animation-play-state:running;
+}
+
+#artwork,.fallback{
+ position:absolute;
+ inset:0;
+ width:100%;
+ height:100%;
+ border-radius:50%;
+}
+
+#artwork{
+ display:block;
+ object-fit:cover;
+ object-position:center;
+}
+
+#artwork[hidden]{
+ display:none!important;
+}
+
+.fallback{
+ display:grid;
+ place-items:center;
+ background:radial-gradient(circle,#e7c58d,#b66d3c);
+ color:#653c29;
+ font:34px Georgia,serif;
+}
+
+.fallback[hidden]{
+ display:none!important;
+}
+
+.grooves{
+ position:absolute;
+ inset:0;
+ border-radius:50%;
+ pointer-events:none;
+ background:repeating-radial-gradient(
+  circle,
+  transparent 0 5px,
+  #17130f16 5.5px 6px,
+  transparent 6.5px 9px
+ );
+}
+
+.rim{
+ position:absolute;
+ inset:0;
+ border:1px solid #e9d7b177;
+ border-radius:50%;
+ pointer-events:none;
+ box-shadow:
+  inset 0 0 0 2px #1c171522,
+  inset 0 0 0 4px #ffffff20;
+}
+
+.spindle{
+ position:absolute;
+ z-index:3;
+ width:5px;
+ height:5px;
+ left:50%;
+ top:50%;
+ transform:translate(-50%,-50%);
+ border-radius:50%;
+ background:#e8d4b0;
+ border:1px solid #6e4c36;
+ box-shadow:0 0 0 1px #2b211b;
+}
+
+section{
+ min-width:0;
+ flex:1;
+ padding-right:18px;
+}
+
+small{
+ display:block;
+ font:10px "Segoe UI",sans-serif;
+ letter-spacing:1.7px;
+ color:#98613e;
+ white-space:nowrap;
+ overflow:hidden;
+ text-overflow:ellipsis;
+}
+
+h1{
+ font-size:25px;
+ font-weight:normal;
+ margin:7px 0 3px;
+ white-space:nowrap;
+ overflow:hidden;
+ text-overflow:ellipsis;
+}
+
+p{
+ margin:0;
+ color:#6f5542;
+ white-space:nowrap;
+ overflow:hidden;
+ text-overflow:ellipsis;
+}
+
+#album{
+ font:11px "Segoe UI",sans-serif;
+ color:#9b8068;
+ margin-top:3px;
+}
+
+.line{
+ height:3px;
+ background:#d4c1a5;
+ margin-top:12px;
+}
+
+.line div{
+ height:100%;
+ width:0;
+ background:#b66d3c;
+ transition:width .3s linear;
+}
+
+footer{
+ display:flex;
+ justify-content:space-between;
+ font:10px "Segoe UI",sans-serif;
+ color:#987d64;
+ margin-top:5px;
+}
+
+.edition{
+ position:absolute;
+ right:22px;
+ top:19px;
+ font:9px/1.7 "Segoe UI",sans-serif;
+ letter-spacing:2px;
+ text-align:right;
+ color:#b18d69;
+}
+
+.edition span{
+ font-size:8px;
+ letter-spacing:1px;
+}
+
+@keyframes spin{
+ from{transform:rotate(0deg)}
+ to{transform:rotate(360deg)}
+}
+
+@media(prefers-reduced-motion:reduce){
+ .record{animation:none!important}
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+ const $ = id => document.getElementById(id);
+
+ const put = (id,value) => {
+  const element=$(id);
+  if(element) element.textContent=value;
+ };
+
+ const time = ms => {
+  const seconds=Math.floor(ms/1000);
+  return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,"0")}`;
+ };
+
+ let requestedArtwork=null;
+
+ function setArtwork(url) {
+  const img=$("artwork");
+  const fallback=$("art-fallback");
+
+  if(!img||!fallback||url===requestedArtwork) return;
+
+  requestedArtwork=url;
+
+  img.onload=null;
+  img.onerror=null;
+
+  img.hidden=true;
+  fallback.hidden=false;
+
+  if(!url) {
+   img.removeAttribute("src");
+   return;
+  }
+
+  img.onload=()=>{
+   if(requestedArtwork!==url) return;
+
+   fallback.hidden=true;
+   img.hidden=false;
+  };
+
+  img.onerror=()=>{
+   if(requestedArtwork!==url) return;
+
+   img.hidden=true;
+   fallback.hidden=false;
+  };
+
+  // artworkUrl is a local runtime URL. Use it unchanged.
+  img.src=url;
+ }
+
+ function render(state) {
+  if(!state) return;
+
+  const metadata=state.metadata||{};
+  const player=state.player;
+  const status=state.connected
+   ?(state.status||"unknown")
+   :"disconnected";
+
+  const artists=Array.isArray(metadata.artists)
+   ?metadata.artists.filter(
+      artist=>typeof artist==="string"&&artist.trim().length>0
+    ).join(" · ")
+   :"";
+
+  put(
+   "title",
+   typeof metadata.title==="string"&&metadata.title.trim()
+    ?metadata.title
+    :"Nothing playing"
+  );
+
+  put(
+   "artist",
+   artists||(state.connected?"Unknown artist":"Waiting for player")
+  );
+
+  put("album",metadata.album||"");
+  put("status",status.toUpperCase());
+  put("player",player&&player.identity?player.identity:"NO PLAYER");
+
+  const duration=Number.isFinite(state.durationMs)
+   ?Math.max(0,state.durationMs)
+   :0;
+
+  const position=Number.isFinite(state.positionMs)
+   ?Math.max(0,state.positionMs)
+   :0;
+
+  const percentage=duration
+   ?Math.min(100,position/duration*100)
+   :0;
+
+  put("elapsed",time(position));
+  put("duration",duration?time(duration):"--:--");
+
+  const progress=$("progress");
+  if(progress) progress.style.width=percentage+"%";
+
+  const artworkUrl=typeof metadata.artworkUrl==="string"
+   ?metadata.artworkUrl
+   :"";
+
+  setArtwork(artworkUrl);
+
+  document.body.dataset.status=status;
+  document.body.dataset.connected=state.connected?"true":"false";
+ }
+
+ if(
+  window.NowPlaying&&
+  typeof window.NowPlaying.subscribe==="function"
+ ) {
+  window.NowPlaying.subscribe((snapshot,kind)=>{
+   render(snapshot);
+  });
+ }
+})();
+'''

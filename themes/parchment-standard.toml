@@ -1,0 +1,708 @@
+
+[theme]
+id = "parchment-standard"
+family_id = "parchment"
+name = "Parchment"
+version = "1.0.0"
+format_version = 1
+author = "nowplaying"
+description = "A muted parchment themed music player with layered pigment washes, textured paper, organic brushwork and gently animated paint blooms."
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 800
+height = 150
+background = "#eee9dc"
+
+[layout]
+direction = "horizontal"
+alignment = "center"
+spacing = 18
+padding = 12
+
+[artwork]
+enabled = true
+position = "left"
+width = 112
+height = 112
+fit = "cover"
+rendering = "auto"
+
+[metadata]
+show_title = true
+show_artist = true
+show_album = true
+alignment = "start"
+
+[progress]
+enabled = true
+position = "bottom"
+height = 3
+
+[animations]
+enabled = true
+reduced_motion_support = true
+track_change = "crossfade"
+track_change_duration_ms = 1200
+
+[colors]
+background = "#eee9dc"
+text = "#393b37"
+muted = "#77776c"
+accent = "#a66e64"
+
+[html]
+template = '''
+<main id="watercolor" class="watercolor">
+  <div class="paper-grain"></div>
+
+  <div class="paint-cloud cloud-one"></div>
+  <div class="paint-cloud cloud-two"></div>
+  <div class="paint-cloud cloud-three"></div>
+  <div class="paint-cloud cloud-four"></div>
+
+  <svg class="paint-decoration" viewBox="0 0 800 150" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 18 C90 2 120 38 194 23 S300 6 360 26" fill="none" stroke="#c18c79" stroke-width="2" opacity=".22"/>
+    <path d="M0 128 C90 112 160 148 245 128 S340 115 410 135" fill="none" stroke="#8a9d91" stroke-width="3" opacity=".23"/>
+    <path d="M475 0 C510 40 540 12 570 35 S650 56 800 15" fill="none" stroke="#d5ad75" stroke-width="2" opacity=".24"/>
+    <path d="M620 150 C660 120 720 144 800 112" fill="none" stroke="#a2a58c" stroke-width="3" opacity=".24"/>
+    <circle cx="690" cy="35" r="2" fill="#a66e64" opacity=".5"/>
+    <circle cx="712" cy="47" r="3" fill="#a66e64" opacity=".3"/>
+    <circle cx="735" cy="27" r="2" fill="#8a9d91" opacity=".5"/>
+    <circle cx="755" cy="60" r="2" fill="#d5ad75" opacity=".5"/>
+    <circle cx="450" cy="112" r="2" fill="#a66e64" opacity=".35"/>
+  </svg>
+
+  <section class="composition">
+    <div class="art-frame">
+      <div class="art-wash"></div>
+      <img id="artwork" class="artwork" alt="Album artwork"/>
+      <div id="art-fallback" class="art-fallback">
+        <span class="fallback-flower">✿</span>
+      </div>
+      <div class="art-edge"></div>
+    </div>
+
+    <div class="information">
+      <div class="eyebrow">
+        <span class="eyebrow-line"></span>
+        <span id="player">NOW PLAYING</span>
+        <span class="eyebrow-dot"></span>
+      </div>
+
+      <div class="title-wrap">
+        <h1 id="title">A little moment of music</h1>
+      </div>
+
+      <div class="artist-line">
+        <span class="artist-mark"></span>
+        <p id="artist">Let the colors unfold</p>
+      </div>
+
+      <div class="album-line">
+        <span id="album">A collection of melodies</span>
+        <span class="separator">·</span>
+        <span id="status">WAITING</span>
+      </div>
+    </div>
+
+    <aside class="side-composition">
+      <svg class="botanical" viewBox="0 0 130 115" aria-hidden="true">
+        <path d="M65 105 C65 75 55 48 76 12" stroke="#687d69" stroke-width="1.5" fill="none" opacity=".7"/>
+        <path d="M65 83 C36 80 26 62 24 47 C47 47 62 59 65 83Z" fill="#8fa58a" opacity=".5"/>
+        <path d="M66 65 C87 62 101 45 101 28 C80 31 68 45 66 65Z" fill="#a8b39a" opacity=".6"/>
+        <path d="M70 44 C54 39 50 23 55 10 C72 19 76 29 70 44Z" fill="#b9a28c" opacity=".6"/>
+        <path d="M65 105 C65 85 45 74 34 71" stroke="#687d69" stroke-width="1" fill="none"/>
+        <circle cx="77" cy="12" r="4" fill="#c58e79" opacity=".7"/>
+      </svg>
+      <div class="side-note">painted<br/>in sound</div>
+    </aside>
+  </section>
+
+  <footer class="progress-area">
+    <div class="progress-track">
+      <progress id="progress" max="100" value="0"></progress>
+    </div>
+    <span id="elapsed">0:00</span>
+    <span class="progress-spacer"></span>
+    <span id="duration">--:--</span>
+  </footer>
+
+  <div class="status-wash" id="status-wash"></div>
+</main>
+'''
+
+[css]
+stylesheet = '''
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  width: 800px;
+  height: 150px;
+  overflow: hidden;
+}
+
+body {
+  background: transparent;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.watercolor {
+  position: relative;
+  width: 800px;
+  height: 150px;
+  overflow: hidden;
+  isolation: isolate;
+  color: #393b37;
+  background:
+    radial-gradient(ellipse at 10% 5%, rgba(201,153,131,.14), transparent 34%),
+    radial-gradient(ellipse at 83% 90%, rgba(135,158,139,.17), transparent 35%),
+    #eee9dc;
+}
+
+.paper-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: .19;
+  background-image:
+    repeating-radial-gradient(ellipse at 20% 30%, rgba(75,65,50,.17) 0px, transparent 1px, transparent 4px),
+    repeating-radial-gradient(ellipse at 70% 70%, rgba(255,255,255,.7) 0px, transparent 1px, transparent 5px);
+  background-size: 13px 17px, 19px 23px;
+  mix-blend-mode: multiply;
+}
+
+.paint-cloud {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 48% 52% 64% 36% / 43% 35% 65% 57%;
+  filter: blur(1px);
+  opacity: .7;
+  animation: pigment-drift 16s ease-in-out infinite alternate;
+}
+
+.cloud-one {
+  width: 300px;
+  height: 130px;
+  left: -75px;
+  top: -54px;
+  background:
+    radial-gradient(ellipse at 40% 60%, rgba(183,124,111,.3), transparent 65%),
+    radial-gradient(ellipse at 70% 45%, rgba(209,169,132,.24), transparent 60%);
+}
+
+.cloud-two {
+  width: 260px;
+  height: 130px;
+  left: 380px;
+  top: 60px;
+  background:
+    radial-gradient(ellipse at 40% 40%, rgba(126,157,139,.25), transparent 67%),
+    radial-gradient(ellipse at 80% 50%, rgba(190,164,126,.22), transparent 60%);
+  animation-delay: -5s;
+}
+
+.cloud-three {
+  width: 240px;
+  height: 140px;
+  right: -70px;
+  top: -55px;
+  background:
+    radial-gradient(ellipse at 45% 60%, rgba(173,124,133,.22), transparent 65%),
+    radial-gradient(ellipse at 70% 35%, rgba(207,176,133,.22), transparent 60%);
+  animation-delay: -8s;
+}
+
+.cloud-four {
+  width: 170px;
+  height: 80px;
+  left: 250px;
+  bottom: -52px;
+  background: radial-gradient(ellipse, rgba(143,165,138,.22), transparent 70%);
+  animation-delay: -3s;
+}
+
+@keyframes pigment-drift {
+  from {
+    transform: translate(0, 0) rotate(-3deg);
+  }
+  to {
+    transform: translate(7px, -4px) rotate(3deg);
+  }
+}
+
+.paint-decoration {
+  position: absolute;
+  inset: 0;
+  width: 800px;
+  height: 150px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.composition {
+  position: absolute;
+  inset: 0 0 7px 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  gap: 19px;
+}
+
+.art-frame {
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
+  position: relative;
+  overflow: hidden;
+  background: #d9c9b6;
+  clip-path: polygon(3% 4%, 96% 1%, 99% 94%, 5% 99%, 1% 54%);
+  box-shadow: 0 3px 12px rgba(67,57,47,.13);
+}
+
+.art-wash {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 10% 20%, rgba(211,172,132,.5), transparent 55%),
+    radial-gradient(ellipse at 90% 80%, rgba(130,155,133,.35), transparent 55%);
+  mix-blend-mode: multiply;
+}
+
+.artwork {
+  display: none;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  inset: 0;
+}
+
+.art-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 35% 30%, rgba(191,133,119,.7), transparent 55%),
+    radial-gradient(ellipse at 75% 75%, rgba(124,153,132,.65), transparent 60%),
+    #e4d8c4;
+}
+
+.fallback-flower {
+  font-size: 53px;
+  color: rgba(255,249,230,.85);
+}
+
+.art-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 2px solid rgba(255,250,235,.36);
+  pointer-events: none;
+}
+
+.information {
+  min-width: 0;
+  flex: 1;
+  align-self: center;
+  padding-top: 1px;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 15px;
+  font-family: Arial, sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 2.5px;
+  color: #8c8274;
+}
+
+.eyebrow-line {
+  width: 22px;
+  height: 1px;
+  background: #b58c79;
+}
+
+.eyebrow-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #b58c79;
+}
+
+.title-wrap {
+  max-width: 100%;
+  margin-top: 7px;
+}
+
+h1 {
+  font-size: 25px;
+  line-height: 1.15;
+  font-weight: 400;
+  letter-spacing: -.55px;
+  color: #393b37;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 6px;
+}
+
+.artist-mark {
+  width: 17px;
+  height: 1px;
+  background: #a66e64;
+  flex: 0 0 17px;
+}
+
+.artist-line p {
+  margin: 0;
+  font-size: 13px;
+  color: #716d62;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.album-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  font-family: Arial, sans-serif;
+  font-size: 8px;
+  letter-spacing: 1.25px;
+  text-transform: uppercase;
+  color: #9a9283;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#album {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.separator {
+  color: #b58c79;
+}
+
+#status {
+  color: #a66e64;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.side-composition {
+  width: 125px;
+  height: 115px;
+  flex: 0 0 125px;
+  position: relative;
+  align-self: center;
+  opacity: .85;
+}
+
+.botanical {
+  position: absolute;
+  width: 115px;
+  height: 105px;
+  right: 0;
+  top: -1px;
+  animation: botanical-sway 8s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+}
+
+@keyframes botanical-sway {
+  from { transform: rotate(-2deg); }
+  to { transform: rotate(3deg); }
+}
+
+.side-note {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 10px;
+  font-style: italic;
+  line-height: 1.35;
+  letter-spacing: 1px;
+  text-align: right;
+  color: #978978;
+}
+
+.progress-area {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 8px;
+  background: rgba(255,255,255,.17);
+  font-family: Arial, sans-serif;
+  font-size: 7px;
+  color: #948b7e;
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+
+.watercolor.is-playing .progress-area,
+.watercolor.is-paused .progress-area {
+  opacity: 1;
+}
+
+.progress-track {
+  height: 2px;
+  flex: 1;
+  background: rgba(120,108,93,.18);
+  overflow: hidden;
+}
+
+progress {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 2px;
+  border: none;
+  background: transparent;
+}
+
+progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+progress::-webkit-progress-value {
+  background: #a66e64;
+  transition: width .5s linear;
+}
+
+progress::-moz-progress-bar {
+  background: #a66e64;
+}
+
+.progress-spacer {
+  display: none;
+}
+
+.status-wash {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 50%, rgba(192,143,126,.12), transparent 65%);
+}
+
+.is-playing .status-wash {
+  animation: breathing-wash 7s ease-in-out infinite alternate;
+}
+
+@keyframes breathing-wash {
+  from { opacity: .1; }
+  to { opacity: .65; }
+}
+
+.is-paused .status-wash {
+  opacity: .12;
+  animation: none;
+}
+
+.is-disconnected .eyebrow-dot {
+  background: #aaa397;
+}
+
+.track-change {
+  animation: pigment-arrival 1.2s ease both;
+}
+
+@keyframes pigment-arrival {
+  0% {
+    opacity: .45;
+    filter: blur(3px);
+  }
+  45% {
+    opacity: .8;
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const root = document.getElementById("watercolor");
+  if (!root || !window.NowPlaying) return;
+
+  const $ = (id) => document.getElementById(id);
+
+  const artwork = $("artwork");
+  const fallback = $("art-fallback");
+  const title = $("title");
+  const artist = $("artist");
+  const album = $("album");
+  const player = $("player");
+  const status = $("status");
+  const progress = $("progress");
+  const elapsed = $("elapsed");
+  const duration = $("duration");
+
+  let previousTrack = null;
+
+  function safeText(value, fallbackText) {
+    return typeof value === "string" && value.trim()
+      ? value.trim()
+      : fallbackText;
+  }
+
+  function formatTime(ms) {
+    if (!Number.isFinite(ms) || ms < 0) return "--:--";
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    return minutes + ":" + String(seconds % 60).padStart(2, "0");
+  }
+
+  function updateArtwork(url) {
+    if (typeof url !== "string" || !url.trim()) {
+      artwork.removeAttribute("src");
+      artwork.style.display = "none";
+      fallback.style.display = "flex";
+      return;
+    }
+
+    artwork.onload = () => {
+      artwork.style.display = "block";
+      fallback.style.display = "none";
+    };
+
+    artwork.onerror = () => {
+      artwork.style.display = "none";
+      fallback.style.display = "flex";
+    };
+
+    artwork.src = url;
+  }
+
+  function animateTrack() {
+    root.classList.remove("track-change");
+    void root.offsetWidth;
+    root.classList.add("track-change");
+  }
+
+  function render(snapshot, kind) {
+    if (!snapshot) {
+      root.classList.remove("is-playing", "is-paused");
+      root.classList.add("is-disconnected");
+      title.textContent = "A little moment of music";
+      artist.textContent = "Waiting for a connection";
+      album.textContent = "Your music will appear here";
+      player.textContent = "NOW PLAYING";
+      status.textContent = "WAITING";
+      progress.value = 0;
+      progress.max = 100;
+      elapsed.textContent = "0:00";
+      duration.textContent = "--:--";
+      updateArtwork(null);
+      return;
+    }
+
+    const metadata = snapshot.metadata || {};
+    const artists = Array.isArray(metadata.artists)
+      ? metadata.artists.filter(a => typeof a === "string" && a.trim())
+      : [];
+
+    const track = metadata.trackId || metadata.title || "";
+    if (previousTrack !== null && track !== previousTrack) {
+      animateTrack();
+    }
+    previousTrack = track;
+
+    const connected = snapshot.connected === true;
+    const playback = snapshot.status || "unknown";
+
+    root.classList.toggle("is-disconnected", !connected);
+    root.classList.toggle("is-playing", connected && playback === "playing");
+    root.classList.toggle("is-paused", connected && playback === "paused");
+
+    title.textContent = safeText(metadata.title, connected ? "An untitled melody" : "A little moment of music");
+    artist.textContent = artists.length ? artists.join(" · ") : "Unknown artist";
+    album.textContent = safeText(metadata.album, "An open canvas");
+
+    const playerIdentity = snapshot.player && snapshot.player.identity;
+    player.textContent = connected
+      ? safeText(playerIdentity, "NOW PLAYING").toUpperCase()
+      : "OFFLINE";
+
+    const statusLabels = {
+      playing: "PLAYING",
+      paused: "PAUSED",
+      stopped: "STOPPED",
+      unknown: "READY"
+    };
+
+    status.textContent = connected
+      ? (statusLabels[playback] || "READY")
+      : "OFFLINE";
+
+    updateArtwork(metadata.artworkUrl);
+
+    const durationMs = Number.isFinite(snapshot.durationMs) && snapshot.durationMs > 0
+      ? snapshot.durationMs
+      : null;
+
+    const positionMs = Number.isFinite(snapshot.positionMs)
+      ? Math.max(0, snapshot.positionMs)
+      : 0;
+
+    progress.max = durationMs || 100;
+    progress.value = durationMs
+      ? Math.min(positionMs, durationMs)
+      : 0;
+
+    elapsed.textContent = formatTime(positionMs);
+    duration.textContent = durationMs ? formatTime(durationMs) : "--:--";
+  }
+
+  window.NowPlaying.subscribe((snapshot, kind) => {
+    render(snapshot, kind);
+  });
+
+  const initial = window.NowPlaying.getState();
+  if (initial) render(initial, "initial");
+})();
+'''

@@ -1,0 +1,747 @@
+[theme]
+id = "watercolor-standard"
+family_id = "watercolor"
+name = "Watercolor"
+version = "1.0.0"
+format_version = 1
+author = "nowplaying"
+description = "A vibrant watercolor painting with saturated pigment blooms, botanical illustrations, expressive color bleeding and organic paper texture."
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 800
+height = 150
+background = "#f8efd9"
+
+[layout]
+direction = "horizontal"
+alignment = "center"
+spacing = 18
+padding = 12
+
+[artwork]
+enabled = true
+position = "left"
+width = 112
+height = 112
+fit = "cover"
+rendering = "auto"
+
+[metadata]
+show_title = true
+show_artist = true
+show_album = true
+alignment = "start"
+
+[progress]
+enabled = true
+position = "bottom"
+height = 3
+
+[animations]
+enabled = true
+reduced_motion_support = true
+track_change = "crossfade"
+track_change_duration_ms = 1400
+
+[colors]
+background = "#f8efd9"
+text = "#302d43"
+muted = "#71647b"
+accent = "#ef547b"
+
+[html]
+template = '''
+<main id="watercolor" class="watercolor">
+  <div class="paper"></div>
+
+  <div class="wash wash-blue"></div>
+  <div class="wash wash-pink"></div>
+  <div class="wash wash-yellow"></div>
+  <div class="wash wash-green"></div>
+  <div class="wash wash-purple"></div>
+
+  <svg class="splashes" viewBox="0 0 800 150" preserveAspectRatio="none" aria-hidden="true">
+    <g fill="#ed567b">
+      <circle cx="25" cy="22" r="4"/><circle cx="40" cy="33" r="2"/>
+      <circle cx="60" cy="17" r="3"/><circle cx="85" cy="46" r="2"/>
+      <circle cx="107" cy="15" r="2"/>
+      <circle cx="725" cy="112" r="3"/><circle cx="747" cy="125" r="2"/>
+    </g>
+    <g fill="#268bc5">
+      <circle cx="190" cy="15" r="3"/><circle cx="208" cy="29" r="2"/>
+      <circle cx="230" cy="12" r="2"/><circle cx="755" cy="25" r="4"/>
+      <circle cx="777" cy="42" r="2"/>
+    </g>
+    <g fill="#e6a72f">
+      <circle cx="330" cy="128" r="3"/><circle cx="350" cy="139" r="2"/>
+      <circle cx="680" cy="18" r="3"/><circle cx="695" cy="31" r="2"/>
+    </g>
+    <g fill="#568c70">
+      <circle cx="125" cy="116" r="3"/><circle cx="142" cy="131" r="2"/>
+      <circle cx="580" cy="133" r="3"/>
+    </g>
+
+    <path d="M0 82 C38 55 64 92 102 73 S158 68 180 91"
+      fill="none" stroke="#e95b81" stroke-width="3" opacity=".5"/>
+    <path d="M570 12 C617 35 649 2 690 28 S752 54 800 27"
+      fill="none" stroke="#298bc3" stroke-width="3" opacity=".45"/>
+    <path d="M360 145 C400 116 440 147 478 120 S535 119 570 139"
+      fill="none" stroke="#e4a32e" stroke-width="3" opacity=".4"/>
+  </svg>
+
+  <div class="paint-orbit orbit-one"></div>
+  <div class="paint-orbit orbit-two"></div>
+
+  <section class="composition">
+    <div class="art-container">
+      <div class="art-underpaint"></div>
+      <img id="artwork" alt="Album artwork"/>
+      <div id="art-fallback" class="art-fallback">
+        <span>✿</span>
+      </div>
+      <div class="art-overlay"></div>
+    </div>
+
+    <div class="information">
+      <div class="eyebrow">
+        <span class="eyebrow-dot"></span>
+        <span id="player">A LITTLE MUSIC</span>
+        <span class="eyebrow-rule"></span>
+      </div>
+
+      <h1 id="title">Where the colors meet</h1>
+
+      <div class="artist-line">
+        <span class="artist-mark"></span>
+        <p id="artist">Music painted in color</p>
+      </div>
+
+      <div class="album-line">
+        <span id="album">A watercolor collection</span>
+        <span class="separator">✦</span>
+        <span id="status">WAITING</span>
+      </div>
+    </div>
+
+    <aside class="botanical">
+      <svg viewBox="0 0 140 125" aria-hidden="true">
+        <defs>
+          <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#a8c875"/>
+            <stop offset="1" stop-color="#398b77"/>
+          </linearGradient>
+        </defs>
+        <path d="M72 120 Q62 72 91 17" fill="none" stroke="#397b68" stroke-width="2"/>
+        <path d="M75 90 Q28 92 19 57 Q55 47 75 90Z" fill="url(#leaf)" opacity=".8"/>
+        <path d="M78 71 Q111 66 126 35 Q91 28 78 71Z" fill="#75ae81" opacity=".8"/>
+        <path d="M83 48 Q48 40 50 10 Q84 15 83 48Z" fill="#c0bd69" opacity=".8"/>
+        <path d="M76 91 L28 61 M79 70 L117 38 M82 47 L55 16" fill="none" stroke="#547b58" stroke-width="1" opacity=".6"/>
+        <path d="M69 119 Q92 94 115 105" fill="none" stroke="#4d866a" stroke-width="2"/>
+        <path d="M115 105 Q100 82 88 87 Q93 106 115 105Z" fill="#91b77d"/>
+        <g transform="translate(25 16)">
+          <circle cx="0" cy="0" r="7" fill="#ef8a8e"/>
+          <ellipse cx="0" cy="-9" rx="5" ry="9" fill="#f3a4a1"/>
+          <ellipse cx="9" cy="0" rx="9" ry="5" fill="#ed7295"/>
+          <ellipse cx="0" cy="9" rx="5" ry="9" fill="#e982a2"/>
+          <ellipse cx="-9" cy="0" rx="9" ry="5" fill="#f5b1a0"/>
+          <circle cx="0" cy="0" r="4" fill="#e8b43b"/>
+        </g>
+      </svg>
+      <div class="botanical-note">let it bloom</div>
+    </aside>
+  </section>
+
+  <footer class="progress-area">
+    <progress id="progress" max="100" value="0"></progress>
+    <span id="elapsed">0:00</span>
+    <span class="time-divider">/</span>
+    <span id="duration">--:--</span>
+  </footer>
+</main>
+'''
+
+[css]
+stylesheet = '''
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  width: 800px;
+  height: 150px;
+  overflow: hidden;
+}
+
+body {
+  background: transparent;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.watercolor {
+  position: relative;
+  width: 800px;
+  height: 150px;
+  overflow: hidden;
+  isolation: isolate;
+  color: #302d43;
+  background: #f8efd9;
+}
+
+.paper {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  opacity: .23;
+  background-image:
+    repeating-radial-gradient(ellipse at 20% 30%, rgba(90,65,48,.2) 0px, transparent 1px, transparent 4px),
+    repeating-radial-gradient(ellipse at 80% 70%, rgba(255,255,255,.8) 0px, transparent 1px, transparent 5px);
+  background-size: 11px 13px, 17px 19px;
+  mix-blend-mode: multiply;
+}
+
+.wash {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(2px);
+  border-radius: 45% 55% 60% 40% / 50% 35% 65% 50%;
+  animation: pigment 13s ease-in-out infinite alternate;
+}
+
+.wash-blue {
+  width: 390px;
+  height: 160px;
+  left: -100px;
+  top: -92px;
+  background:
+    radial-gradient(ellipse at 45% 60%, rgba(28,135,201,.78), transparent 64%),
+    radial-gradient(ellipse at 75% 65%, rgba(55,180,192,.65), transparent 62%),
+    radial-gradient(ellipse at 20% 80%, rgba(71,109,189,.5), transparent 60%);
+}
+
+.wash-pink {
+  width: 370px;
+  height: 160px;
+  left: 270px;
+  top: -88px;
+  background:
+    radial-gradient(ellipse at 45% 70%, rgba(237,77,132,.72), transparent 62%),
+    radial-gradient(ellipse at 75% 65%, rgba(211,86,166,.55), transparent 65%);
+  animation-delay: -4s;
+}
+
+.wash-yellow {
+  width: 320px;
+  height: 130px;
+  right: -85px;
+  top: -65px;
+  background:
+    radial-gradient(ellipse at 40% 60%, rgba(243,181,49,.75), transparent 65%),
+    radial-gradient(ellipse at 75% 50%, rgba(236,130,72,.4), transparent 65%);
+  animation-delay: -7s;
+}
+
+.wash-green {
+  width: 340px;
+  height: 135px;
+  left: 320px;
+  bottom: -95px;
+  background:
+    radial-gradient(ellipse at 40% 40%, rgba(77,158,111,.67), transparent 65%),
+    radial-gradient(ellipse at 80% 50%, rgba(42,154,155,.52), transparent 60%);
+  animation-delay: -3s;
+}
+
+.wash-purple {
+  width: 260px;
+  height: 120px;
+  right: 30px;
+  bottom: -80px;
+  background:
+    radial-gradient(ellipse, rgba(139,93,180,.55), transparent 68%);
+  animation-delay: -6s;
+}
+
+@keyframes pigment {
+  from {
+    transform: translate(0, 0) rotate(-4deg) scale(.98);
+  }
+  to {
+    transform: translate(9px, -5px) rotate(4deg) scale(1.03);
+  }
+}
+
+.splashes {
+  position: absolute;
+  inset: 0;
+  width: 800px;
+  height: 150px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.paint-orbit {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(2px);
+  opacity: .65;
+}
+
+.orbit-one {
+  width: 120px;
+  height: 95px;
+  left: 170px;
+  top: 80px;
+  background: radial-gradient(ellipse, rgba(235,91,119,.35), transparent 70%);
+}
+
+.orbit-two {
+  width: 150px;
+  height: 120px;
+  right: 110px;
+  top: 50px;
+  background: radial-gradient(ellipse, rgba(46,151,165,.3), transparent 70%);
+}
+
+.composition {
+  position: absolute;
+  inset: 0 0 7px 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 19px;
+  padding: 12px 20px;
+}
+
+.art-container {
+  position: relative;
+  flex: 0 0 112px;
+  width: 112px;
+  height: 112px;
+  overflow: hidden;
+  clip-path: polygon(3% 3%, 96% 1%, 100% 94%, 5% 100%, 0 55%);
+  background: #d9bca1;
+}
+
+.art-underpaint {
+  position: absolute;
+  inset: -5px;
+  background:
+    radial-gradient(ellipse at 20% 20%, #ec8c80, transparent 65%),
+    radial-gradient(ellipse at 75% 75%, #73a9a0, transparent 60%),
+    #e8c88a;
+}
+
+#artwork {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.art-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background:
+    radial-gradient(ellipse at 25% 20%, #f2b65d, transparent 60%),
+    radial-gradient(ellipse at 75% 75%, #e7658b, transparent 60%),
+    radial-gradient(ellipse at 35% 80%, #439caa, transparent 60%);
+}
+
+.art-fallback span {
+  font-size: 58px;
+  color: #fff0d5;
+  text-shadow: 0 2px 8px rgba(75,45,65,.2);
+}
+
+.art-overlay {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(255,247,220,.6);
+  pointer-events: none;
+}
+
+.information {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: Arial, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: #785f7d;
+}
+
+.eyebrow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ec5b7c;
+  box-shadow: 0 0 8px rgba(236,91,124,.35);
+}
+
+.eyebrow-rule {
+  width: 28px;
+  height: 2px;
+  background: linear-gradient(90deg, #ed6380, #e9ad48);
+}
+
+h1 {
+  margin: 8px 0 0;
+  font-size: 26px;
+  line-height: 1.12;
+  letter-spacing: -.5px;
+  font-weight: 400;
+  color: #393049;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 7px;
+}
+
+.artist-mark {
+  width: 18px;
+  height: 3px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #ec6080, #b77ad0);
+}
+
+.artist-line p {
+  margin: 0;
+  font-size: 13px;
+  font-style: italic;
+  color: #71617b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.album-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 9px;
+  font-family: Arial, sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: #81758a;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#album {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.separator {
+  color: #ed8d46;
+}
+
+#status {
+  color: #d84f78;
+  flex-shrink: 0;
+}
+
+.botanical {
+  flex: 0 0 125px;
+  width: 125px;
+  height: 125px;
+  position: relative;
+  opacity: .95;
+  animation: sway 7s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+}
+
+.botanical svg {
+  width: 125px;
+  height: 112px;
+}
+
+.botanical-note {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  color: #a45d77;
+  font-size: 11px;
+  font-style: italic;
+  letter-spacing: 1px;
+}
+
+@keyframes sway {
+  from { transform: rotate(-3deg); }
+  to { transform: rotate(3deg); }
+}
+
+.progress-area {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 7px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 20px;
+  font: 7px Arial, sans-serif;
+  color: #71617b;
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+
+.is-playing .progress-area,
+.is-paused .progress-area {
+  opacity: 1;
+}
+
+progress {
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  flex: 1;
+  border: none;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(83,67,91,.16);
+}
+
+progress::-webkit-progress-bar {
+  background: rgba(83,67,91,.16);
+}
+
+progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #278dc1, #bd6bc2, #ed567d, #efa936);
+  border-radius: 4px;
+}
+
+progress::-moz-progress-bar {
+  background: linear-gradient(90deg, #278dc1, #bd6bc2, #ed567d, #efa936);
+}
+
+.time-divider {
+  opacity: .5;
+}
+
+.track-change {
+  animation: paint-arrival 1.4s ease both;
+}
+
+@keyframes paint-arrival {
+  0% {
+    opacity: .45;
+    filter: blur(4px);
+  }
+  40% {
+    opacity: .85;
+    filter: blur(1.5px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.is-playing .wash {
+  animation-duration: 11s;
+}
+
+.is-paused .wash {
+  animation-play-state: paused;
+}
+
+.is-disconnected .eyebrow-dot {
+  background: #a79b8e;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const root = document.getElementById("watercolor");
+  if (!root || !window.NowPlaying) return;
+
+  const $ = id => document.getElementById(id);
+
+  const artwork = $("artwork");
+  const fallback = $("art-fallback");
+  const title = $("title");
+  const artist = $("artist");
+  const album = $("album");
+  const player = $("player");
+  const status = $("status");
+  const progress = $("progress");
+  const elapsed = $("elapsed");
+  const duration = $("duration");
+
+  let previousTrack = null;
+  let artworkRequest = null;
+
+  function text(value, alternative) {
+    return typeof value === "string" && value.trim()
+      ? value.trim()
+      : alternative;
+  }
+
+  function time(ms) {
+    if (!Number.isFinite(ms) || ms < 0) return "--:--";
+    const s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  function setArtwork(url) {
+    const request = url;
+    artworkRequest = request;
+
+    if (typeof request !== "string" || !request.trim()) {
+      artwork.removeAttribute("src");
+      artwork.style.display = "none";
+      fallback.style.display = "flex";
+      return;
+    }
+
+    artwork.onload = () => {
+      if (artworkRequest !== request) return;
+      artwork.style.display = "block";
+      fallback.style.display = "none";
+    };
+
+    artwork.onerror = () => {
+      if (artworkRequest !== request) return;
+      artwork.style.display = "none";
+      fallback.style.display = "flex";
+    };
+
+    artwork.src = request;
+  }
+
+  function animate() {
+    root.classList.remove("track-change");
+    void root.offsetWidth;
+    root.classList.add("track-change");
+  }
+
+  function render(snapshot) {
+    if (!snapshot) {
+      root.classList.remove("is-playing", "is-paused");
+      root.classList.add("is-disconnected");
+
+      title.textContent = "Where the colors meet";
+      artist.textContent = "Waiting for your music";
+      album.textContent = "A watercolor collection";
+      player.textContent = "A LITTLE MUSIC";
+      status.textContent = "WAITING";
+
+      progress.value = 0;
+      elapsed.textContent = "0:00";
+      duration.textContent = "--:--";
+      setArtwork(null);
+      return;
+    }
+
+    const metadata = snapshot.metadata || {};
+    const artists = Array.isArray(metadata.artists)
+      ? metadata.artists.filter(a => typeof a === "string" && a.trim())
+      : [];
+
+    const track = metadata.trackId || metadata.title || "";
+
+    if (previousTrack !== null && track !== previousTrack) {
+      animate();
+    }
+
+    previousTrack = track;
+
+    const connected = snapshot.connected === true;
+    const state = snapshot.status || "unknown";
+
+    root.classList.toggle("is-disconnected", !connected);
+    root.classList.toggle("is-playing", connected && state === "playing");
+    root.classList.toggle("is-paused", connected && state === "paused");
+
+    title.textContent = text(
+      metadata.title,
+      connected ? "An untitled melody" : "Where the colors meet"
+    );
+
+    artist.textContent = artists.length
+      ? artists.join(" · ")
+      : "Unknown artist";
+
+    album.textContent = text(metadata.album, "An open canvas");
+
+    const identity = snapshot.player && snapshot.player.identity;
+
+    player.textContent = connected
+      ? text(identity, "A LITTLE MUSIC").toUpperCase()
+      : "OFFLINE";
+
+    const labels = {
+      playing: "PLAYING",
+      paused: "PAUSED",
+      stopped: "STOPPED",
+      unknown: "READY"
+    };
+
+    status.textContent = connected
+      ? (labels[state] || "READY")
+      : "OFFLINE";
+
+    setArtwork(metadata.artworkUrl);
+
+    const total = Number.isFinite(snapshot.durationMs) &&
+      snapshot.durationMs > 0
+      ? snapshot.durationMs
+      : null;
+
+    const position = Number.isFinite(snapshot.positionMs)
+      ? Math.max(0, snapshot.positionMs)
+      : 0;
+
+    progress.max = total || 100;
+    progress.value = total ? Math.min(position, total) : 0;
+
+    elapsed.textContent = time(position);
+    duration.textContent = total ? time(total) : "--:--";
+  }
+
+  window.NowPlaying.subscribe(snapshot => render(snapshot));
+
+  const initial = window.NowPlaying.getState();
+  if (initial) render(initial);
+})();
+'''

@@ -1,0 +1,743 @@
+[theme]
+id = "watercolor-compact"
+family_id = "watercolor"
+name = "Watercolor"
+version = "1.0.0"
+format_version = 1
+author = "nowplaying"
+description = "A compact watercolor music player with vibrant pigment blooms, expressive color bleeding, botanical details and textured paper."
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 420
+height = 120
+background = "#f8efd9"
+
+[layout]
+direction = "horizontal"
+alignment = "center"
+spacing = 12
+padding = 9
+
+[artwork]
+enabled = true
+position = "left"
+width = 88
+height = 88
+fit = "cover"
+rendering = "auto"
+
+[metadata]
+show_title = true
+show_artist = true
+show_album = true
+alignment = "start"
+
+[progress]
+enabled = true
+position = "bottom"
+height = 3
+
+[animations]
+enabled = true
+reduced_motion_support = true
+track_change = "crossfade"
+track_change_duration_ms = 1200
+
+[colors]
+background = "#f8efd9"
+text = "#302d43"
+muted = "#71647b"
+accent = "#ef547b"
+
+[html]
+template = '''
+<main id="watercolor" class="watercolor">
+  <div class="paper"></div>
+
+  <div class="wash wash-blue"></div>
+  <div class="wash wash-pink"></div>
+  <div class="wash wash-yellow"></div>
+  <div class="wash wash-green"></div>
+  <div class="wash wash-purple"></div>
+
+  <svg class="splashes" viewBox="0 0 420 120" preserveAspectRatio="none" aria-hidden="true">
+    <g fill="#ed567b">
+      <circle cx="12" cy="16" r="3"/>
+      <circle cx="29" cy="27" r="2"/>
+      <circle cx="45" cy="12" r="2"/>
+      <circle cx="392" cy="17" r="3"/>
+      <circle cx="405" cy="31" r="2"/>
+      <circle cx="379" cy="43" r="2"/>
+    </g>
+    <g fill="#268bc5">
+      <circle cx="115" cy="12" r="2"/>
+      <circle cx="129" cy="24" r="3"/>
+      <circle cx="144" cy="13" r="2"/>
+      <circle cx="348" cy="105" r="3"/>
+    </g>
+    <g fill="#e6a72f">
+      <circle cx="70" cy="104" r="3"/>
+      <circle cx="87" cy="113" r="2"/>
+      <circle cx="311" cy="13" r="2"/>
+    </g>
+    <g fill="#568c70">
+      <circle cx="180" cy="108" r="3"/>
+      <circle cx="197" cy="115" r="2"/>
+      <circle cx="370" cy="85" r="2"/>
+    </g>
+
+    <path d="M0 66 Q35 42 67 64 T130 59"
+      stroke="#e95b81" stroke-width="3" opacity=".55" fill="none"/>
+    <path d="M280 0 Q319 28 348 12 T420 28"
+      stroke="#298bc3" stroke-width="3" opacity=".5" fill="none"/>
+    <path d="M200 120 Q231 91 260 109 T310 110"
+      stroke="#e4a32e" stroke-width="3" opacity=".45" fill="none"/>
+  </svg>
+
+  <div class="paint-orbit orbit-one"></div>
+  <div class="paint-orbit orbit-two"></div>
+
+  <section class="composition">
+    <div class="art-container">
+      <div class="art-underpaint"></div>
+      <img id="artwork" alt="Album artwork"/>
+      <div id="art-fallback" class="art-fallback">
+        <span>✿</span>
+      </div>
+      <div class="art-overlay"></div>
+    </div>
+
+    <div class="information">
+      <div class="eyebrow">
+        <span class="eyebrow-dot"></span>
+        <span id="player">A LITTLE MUSIC</span>
+      </div>
+
+      <h1 id="title">Where the colors meet</h1>
+
+      <div class="artist-line">
+        <span class="artist-mark"></span>
+        <p id="artist">Music painted in color</p>
+      </div>
+
+      <div class="album-line">
+        <span id="album">A watercolor collection</span>
+        <span class="separator">✦</span>
+        <span id="status">WAITING</span>
+      </div>
+    </div>
+
+    <aside class="botanical">
+      <svg viewBox="0 0 65 100" aria-hidden="true">
+        <path d="M28 95 Q25 49 46 8" stroke="#397b68" stroke-width="2" fill="none"/>
+        <path d="M29 72 Q4 70 3 44 Q27 42 29 72Z" fill="#76aa7e" opacity=".9"/>
+        <path d="M35 52 Q59 49 63 24 Q42 23 35 52Z" fill="#96b879" opacity=".85"/>
+        <path d="M42 29 Q25 25 30 3 Q48 9 42 29Z" fill="#c5b866" opacity=".85"/>
+        <path d="M29 72 L8 48 M35 52 L58 29" stroke="#507b59" fill="none"/>
+        <g transform="translate(14 17)">
+          <ellipse cx="0" cy="-6" rx="4" ry="7" fill="#f0a1a3"/>
+          <ellipse cx="6" cy="0" rx="7" ry="4" fill="#e96d92"/>
+          <ellipse cx="0" cy="6" rx="4" ry="7" fill="#ef9b9e"/>
+          <ellipse cx="-6" cy="0" rx="7" ry="4" fill="#f2b2a0"/>
+          <circle r="3" fill="#e7b342"/>
+        </g>
+      </svg>
+      <span class="botanical-note">bloom</span>
+    </aside>
+  </section>
+
+  <footer class="progress-area">
+    <progress id="progress" max="100" value="0"></progress>
+    <span id="elapsed">0:00</span>
+    <span class="time-divider">/</span>
+    <span id="duration">--:--</span>
+  </footer>
+</main>
+'''
+
+[css]
+stylesheet = '''
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  width: 420px;
+  height: 120px;
+  overflow: hidden;
+}
+
+body {
+  background: transparent;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.watercolor {
+  position: relative;
+  width: 420px;
+  height: 120px;
+  overflow: hidden;
+  isolation: isolate;
+  color: #302d43;
+  background: #f8efd9;
+}
+
+.paper {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  opacity: .23;
+  background-image:
+    repeating-radial-gradient(ellipse at 20% 30%, rgba(90,65,48,.2) 0px, transparent 1px, transparent 4px),
+    repeating-radial-gradient(ellipse at 80% 70%, rgba(255,255,255,.8) 0px, transparent 1px, transparent 5px);
+  background-size: 11px 13px, 17px 19px;
+  mix-blend-mode: multiply;
+}
+
+.wash {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(2px);
+  border-radius: 45% 55% 60% 40% / 50% 35% 65% 50%;
+  animation: pigment 12s ease-in-out infinite alternate;
+}
+
+.wash-blue {
+  width: 230px;
+  height: 150px;
+  left: -75px;
+  top: -85px;
+  background:
+    radial-gradient(ellipse at 45% 60%, rgba(28,135,201,.8), transparent 64%),
+    radial-gradient(ellipse at 75% 65%, rgba(55,180,192,.65), transparent 62%),
+    radial-gradient(ellipse at 20% 80%, rgba(71,109,189,.5), transparent 60%);
+}
+
+.wash-pink {
+  width: 250px;
+  height: 145px;
+  left: 140px;
+  top: -100px;
+  background:
+    radial-gradient(ellipse at 45% 70%, rgba(237,77,132,.78), transparent 62%),
+    radial-gradient(ellipse at 75% 65%, rgba(211,86,166,.58), transparent 65%);
+  animation-delay: -4s;
+}
+
+.wash-yellow {
+  width: 180px;
+  height: 120px;
+  right: -60px;
+  top: -60px;
+  background:
+    radial-gradient(ellipse at 40% 60%, rgba(243,181,49,.8), transparent 65%),
+    radial-gradient(ellipse at 75% 50%, rgba(236,130,72,.48), transparent 65%);
+  animation-delay: -7s;
+}
+
+.wash-green {
+  width: 240px;
+  height: 110px;
+  left: 110px;
+  bottom: -80px;
+  background:
+    radial-gradient(ellipse at 40% 40%, rgba(77,158,111,.72), transparent 65%),
+    radial-gradient(ellipse at 80% 50%, rgba(42,154,155,.58), transparent 60%);
+  animation-delay: -3s;
+}
+
+.wash-purple {
+  width: 170px;
+  height: 100px;
+  right: 0;
+  bottom: -70px;
+  background: radial-gradient(ellipse, rgba(139,93,180,.58), transparent 68%);
+  animation-delay: -6s;
+}
+
+@keyframes pigment {
+  from {
+    transform: translate(0, 0) rotate(-4deg) scale(.98);
+  }
+  to {
+    transform: translate(7px, -5px) rotate(4deg) scale(1.04);
+  }
+}
+
+.splashes {
+  position: absolute;
+  inset: 0;
+  width: 420px;
+  height: 120px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.paint-orbit {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(2px);
+  opacity: .65;
+}
+
+.orbit-one {
+  width: 85px;
+  height: 75px;
+  left: 75px;
+  top: 55px;
+  background: radial-gradient(ellipse, rgba(235,91,119,.4), transparent 70%);
+}
+
+.orbit-two {
+  width: 90px;
+  height: 85px;
+  right: 20px;
+  top: 30px;
+  background: radial-gradient(ellipse, rgba(46,151,165,.36), transparent 70%);
+}
+
+.composition {
+  position: absolute;
+  inset: 0 0 6px 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px;
+}
+
+.art-container {
+  position: relative;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
+  overflow: hidden;
+  clip-path: polygon(3% 3%, 96% 1%, 100% 94%, 5% 100%, 0 55%);
+  background: #d9bca1;
+}
+
+.art-underpaint {
+  position: absolute;
+  inset: -5px;
+  background:
+    radial-gradient(ellipse at 20% 20%, #ec8c80, transparent 65%),
+    radial-gradient(ellipse at 75% 75%, #73a9a0, transparent 60%),
+    #e8c88a;
+}
+
+#artwork {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.art-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background:
+    radial-gradient(ellipse at 25% 20%, #f2b65d, transparent 60%),
+    radial-gradient(ellipse at 75% 75%, #e7658b, transparent 60%),
+    radial-gradient(ellipse at 35% 80%, #439caa, transparent 60%);
+}
+
+.art-fallback span {
+  font-size: 49px;
+  color: #fff0d5;
+  text-shadow: 0 2px 8px rgba(75,45,65,.2);
+}
+
+.art-overlay {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(255,247,220,.6);
+  pointer-events: none;
+}
+
+.information {
+  flex: 1;
+  min-width: 0;
+  align-self: center;
+  padding-top: 1px;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: Arial, sans-serif;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  color: #785f7d;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #ec5b7c;
+  box-shadow: 0 0 7px rgba(236,91,124,.4);
+}
+
+h1 {
+  margin: 8px 0 0;
+  font-size: 19px;
+  line-height: 1.15;
+  letter-spacing: -.4px;
+  font-weight: 400;
+  color: #393049;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+}
+
+.artist-mark {
+  width: 13px;
+  height: 3px;
+  flex: 0 0 13px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #ec6080, #b77ad0);
+}
+
+.artist-line p {
+  margin: 0;
+  font-size: 11px;
+  font-style: italic;
+  color: #71617b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.album-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-family: Arial, sans-serif;
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  color: #81758a;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#album {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.separator {
+  color: #ed8d46;
+  flex-shrink: 0;
+}
+
+#status {
+  color: #d84f78;
+  flex-shrink: 0;
+}
+
+.botanical {
+  position: relative;
+  flex: 0 0 55px;
+  width: 55px;
+  height: 95px;
+  align-self: center;
+  animation: sway 7s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+}
+
+.botanical svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 55px;
+  height: 85px;
+}
+
+.botanical-note {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  font-size: 9px;
+  font-style: italic;
+  color: #a45d77;
+}
+
+@keyframes sway {
+  from { transform: rotate(-3deg); }
+  to { transform: rotate(3deg); }
+}
+
+.progress-area {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  font: 6px Arial, sans-serif;
+  color: #71617b;
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+
+.is-playing .progress-area,
+.is-paused .progress-area {
+  opacity: 1;
+}
+
+progress {
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  flex: 1;
+  border: none;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(83,67,91,.16);
+}
+
+progress::-webkit-progress-bar {
+  background: rgba(83,67,91,.16);
+}
+
+progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #278dc1, #bd6bc2, #ed567d, #efa936);
+  border-radius: 4px;
+}
+
+progress::-moz-progress-bar {
+  background: linear-gradient(90deg, #278dc1, #bd6bc2, #ed567d, #efa936);
+}
+
+.time-divider {
+  opacity: .5;
+}
+
+.track-change {
+  animation: paint-arrival 1.2s ease both;
+}
+
+@keyframes paint-arrival {
+  0% {
+    opacity: .45;
+    filter: blur(4px);
+  }
+  40% {
+    opacity: .85;
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.is-playing .wash {
+  animation-duration: 11s;
+}
+
+.is-paused .wash {
+  animation-play-state: paused;
+}
+
+.is-disconnected .eyebrow-dot {
+  background: #a79b8e;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const root = document.getElementById("watercolor");
+  if (!root || !window.NowPlaying) return;
+
+  const $ = id => document.getElementById(id);
+
+  const artwork = $("artwork");
+  const fallback = $("art-fallback");
+  const title = $("title");
+  const artist = $("artist");
+  const album = $("album");
+  const player = $("player");
+  const status = $("status");
+  const progress = $("progress");
+  const elapsed = $("elapsed");
+  const duration = $("duration");
+
+  let previousTrack = null;
+  let artworkRequest = null;
+
+  function text(value, alternative) {
+    return typeof value === "string" && value.trim()
+      ? value.trim()
+      : alternative;
+  }
+
+  function time(ms) {
+    if (!Number.isFinite(ms) || ms < 0) return "--:--";
+    const s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  function setArtwork(url) {
+    const request = url;
+    artworkRequest = request;
+
+    if (typeof request !== "string" || !request.trim()) {
+      artwork.removeAttribute("src");
+      artwork.style.display = "none";
+      fallback.style.display = "flex";
+      return;
+    }
+
+    artwork.onload = () => {
+      if (artworkRequest !== request) return;
+      artwork.style.display = "block";
+      fallback.style.display = "none";
+    };
+
+    artwork.onerror = () => {
+      if (artworkRequest !== request) return;
+      artwork.style.display = "none";
+      fallback.style.display = "flex";
+    };
+
+    artwork.src = request;
+  }
+
+  function animate() {
+    root.classList.remove("track-change");
+    void root.offsetWidth;
+    root.classList.add("track-change");
+  }
+
+  function render(snapshot) {
+    if (!snapshot) {
+      root.classList.remove("is-playing", "is-paused");
+      root.classList.add("is-disconnected");
+
+      title.textContent = "Where the colors meet";
+      artist.textContent = "Waiting for your music";
+      album.textContent = "A watercolor collection";
+      player.textContent = "A LITTLE MUSIC";
+      status.textContent = "WAITING";
+
+      progress.value = 0;
+      progress.max = 100;
+      elapsed.textContent = "0:00";
+      duration.textContent = "--:--";
+      setArtwork(null);
+      return;
+    }
+
+    const metadata = snapshot.metadata || {};
+    const artists = Array.isArray(metadata.artists)
+      ? metadata.artists.filter(a => typeof a === "string" && a.trim())
+      : [];
+
+    const track = metadata.trackId || metadata.title || "";
+
+    if (previousTrack !== null && track !== previousTrack) {
+      animate();
+    }
+
+    previousTrack = track;
+
+    const connected = snapshot.connected === true;
+    const state = snapshot.status || "unknown";
+
+    root.classList.toggle("is-disconnected", !connected);
+    root.classList.toggle("is-playing", connected && state === "playing");
+    root.classList.toggle("is-paused", connected && state === "paused");
+
+    title.textContent = text(
+      metadata.title,
+      connected ? "An untitled melody" : "Where the colors meet"
+    );
+
+    artist.textContent = artists.length
+      ? artists.join(" · ")
+      : "Unknown artist";
+
+    album.textContent = text(metadata.album, "An open canvas");
+
+    const identity = snapshot.player && snapshot.player.identity;
+
+    player.textContent = connected
+      ? text(identity, "A LITTLE MUSIC").toUpperCase()
+      : "OFFLINE";
+
+    const labels = {
+      playing: "PLAYING",
+      paused: "PAUSED",
+      stopped: "STOPPED",
+      unknown: "READY"
+    };
+
+    status.textContent = connected
+      ? (labels[state] || "READY")
+      : "OFFLINE";
+
+    setArtwork(metadata.artworkUrl);
+
+    const total = Number.isFinite(snapshot.durationMs) &&
+      snapshot.durationMs > 0
+      ? snapshot.durationMs
+      : null;
+
+    const position = Number.isFinite(snapshot.positionMs)
+      ? Math.max(0, snapshot.positionMs)
+      : 0;
+
+    progress.max = total || 100;
+    progress.value = total ? Math.min(position, total) : 0;
+
+    elapsed.textContent = time(position);
+    duration.textContent = total ? time(total) : "--:--";
+  }
+
+  window.NowPlaying.subscribe((snapshot) => render(snapshot));
+
+  const initial = window.NowPlaying.getState();
+  if (initial) render(initial);
+})();
+'''

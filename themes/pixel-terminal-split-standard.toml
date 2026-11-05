@@ -1,0 +1,429 @@
+[theme]
+id = "pixel-terminal-split-standard"
+name = "Pixel Terminal Split"
+version = "1.2.0"
+format_version = 1
+author = "nowplaying"
+description = "Compact green-phosphor terminal with artwork and segmented playback meter"
+
+[theme.compatibility]
+minimum_runtime = "0.1.0"
+
+[canvas]
+width = 800
+height = 150
+
+[artwork]
+enabled = true
+width = 160
+height = 160
+
+[html]
+template = '''
+<main class="terminal">
+  <header>
+    <div class="brand"><b></b>NPS://AUDIO_SESSION</div>
+    <div class="system">
+      <span class="system-label">SYS.STATUS</span>
+      <span id="status">WAITING</span>
+    </div>
+  </header>
+
+  <section class="screen">
+    <div class="artwork">
+      <img id="artwork" alt="Album artwork" hidden>
+      <div class="art-fallback" id="art-fallback">
+        <span class="fallback-icon">♪</span>
+        <span>NO IMAGE</span>
+      </div>
+      <span class="art-index">[01]</span>
+    </div>
+
+    <div class="information">
+      <div class="section-label">┌─ NOW PLAYING ─────────────────────────</div>
+      <div class="row track-row">
+        <label>TRACK&gt;</label>
+        <strong id="title">Nothing playing</strong>
+      </div>
+      <div class="row">
+        <label>ARTIST&gt;</label>
+        <span id="artist">Waiting for player</span>
+      </div>
+      <div class="row">
+        <label>ALBUM&gt;</label>
+        <span id="album">—</span>
+      </div>
+      <div class="section-label bottom-label">└──────────────────────────────────────</div>
+    </div>
+
+    <div class="playback">
+      <div class="playback-heading">
+        <span>PLAYBACK</span>
+        <span id="percentage">00%</span>
+      </div>
+      <div class="progress">
+        <div id="progress"></div>
+      </div>
+      <div class="timing">
+        <span id="elapsed">0:00</span>
+        <span>/</span>
+        <span id="duration">--:--</span>
+      </div>
+      <div class="player-label">SOURCE:// <span id="player">NO PLAYER</span></div>
+    </div>
+  </section>
+</main>
+'''
+
+[css]
+stylesheet = '''
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:transparent;
+  color:#b8ffc5;
+  font:11px/1.4 "Courier New",monospace;
+}
+.terminal{
+  width:800px;
+  height:150px;
+  padding:6px 9px;
+  overflow:hidden;
+  background:#07130f;
+  border:2px solid #3e9d68;
+  box-shadow:inset 0 0 0 2px #173e2b;
+}
+header{
+  height:22px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 5px 4px;
+  border-bottom:1px solid #24573a;
+  color:#73d995;
+  font-size:9px;
+  letter-spacing:1px;
+}
+.brand{display:flex;align-items:center;gap:7px}
+header b{
+  display:inline-block;
+  width:6px;
+  height:6px;
+  background:#80f49b;
+  box-shadow:0 0 5px #80f49b;
+}
+.system{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.system-label{color:#438e62}
+#status{color:#e1d98c}
+.screen{
+  height:calc(100% - 22px);
+  display:flex;
+  align-items:center;
+  gap:13px;
+  padding:8px 5px 5px;
+  min-width:0;
+  text-shadow:0 0 5px rgba(104,255,147,.15);
+}
+.artwork{
+  position:relative;
+  width:112px;
+  height:112px;
+  flex:none;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  border:1px solid #397b50;
+  background:#0b2116;
+  box-shadow:inset 0 0 0 3px #10271d;
+}
+.artwork img{
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:cover;
+  image-rendering:auto;
+}
+.artwork img[hidden],
+.art-fallback[hidden]{
+  display:none!important;
+}
+.art-fallback{
+  width:100%;
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  color:#438e62;
+  font-size:8px;
+  letter-spacing:1px;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 5px,
+      rgba(104,255,147,.035) 5px 6px
+    );
+}
+.fallback-icon{
+  color:#80f49b;
+  font-size:34px;
+  line-height:1;
+  text-shadow:0 0 10px rgba(128,244,155,.4);
+}
+.art-index{
+  position:absolute;
+  right:5px;
+  bottom:4px;
+  color:#80f49b;
+  font-size:8px;
+  text-shadow:0 1px 3px #07130f;
+}
+.information{
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+}
+.section-label{
+  overflow:hidden;
+  white-space:nowrap;
+  color:#438e62;
+  font-size:9px;
+  letter-spacing:.4px;
+}
+.row{
+  display:flex;
+  gap:8px;
+  min-width:0;
+  margin:4px 0;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.row label{
+  flex:none;
+  color:#68bd83;
+  font-size:9px;
+}
+.row strong,.row span{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-weight:normal;
+}
+.track-row strong{
+  color:#c5ffd0;
+  font-size:14px;
+  font-weight:bold;
+}
+.row span{color:#9bc9a6}
+.bottom-label{margin-top:3px}
+.playback{
+  width:142px;
+  flex:none;
+  align-self:stretch;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding-left:12px;
+  border-left:1px solid #24573a;
+  min-width:0;
+}
+.playback-heading{
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:6px;
+  color:#438e62;
+  font-size:8px;
+  letter-spacing:1px;
+}
+#percentage{color:#8cf6a7}
+.progress{
+  width:100%;
+  height:9px;
+  padding:1px;
+  border:1px solid #397b50;
+  background:#06100c;
+}
+.progress div{
+  width:0;
+  height:100%;
+  background:repeating-linear-gradient(
+    90deg,
+    #8cf6a7 0 6px,
+    transparent 6px 8px
+  );
+  box-shadow:0 0 5px rgba(140,246,167,.3);
+  transition:width .3s linear;
+}
+.timing{
+  display:flex;
+  gap:5px;
+  margin-top:5px;
+  color:#9bc9a6;
+  font-size:9px;
+}
+.player-label{
+  margin-top:7px;
+  overflow:hidden;
+  color:#438e62;
+  font-size:8px;
+  white-space:nowrap;
+}
+.player-label span{
+  color:#8fc99d;
+}
+body[data-status="playing"] header b{
+  animation:blink 1.5s steps(2,start) infinite;
+}
+body[data-status="paused"] header b{
+  background:#e1d98c;
+  box-shadow:0 0 5px #e1d98c;
+  animation:none;
+}
+body[data-connected="false"] header b{
+  background:#a65e5e;
+  box-shadow:0 0 5px #a65e5e;
+  animation:none;
+}
+body[data-connected="false"] #status{color:#c77b7b}
+@keyframes blink{
+  to{opacity:.35}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation:none!important;
+    transition:none!important;
+  }
+}
+'''
+
+[javascript]
+source = '''
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const put = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+
+  const time = ms => {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
+  let requestedArtwork = null;
+
+  function updateArtwork(url) {
+    const img = $("artwork");
+    const fallback = $("art-fallback");
+    if (!img || !fallback) return;
+
+    if (!url) {
+      requestedArtwork = null;
+      img.onload = null;
+      img.onerror = null;
+      img.removeAttribute("src");
+      img.hidden = true;
+      fallback.hidden = false;
+      return;
+    }
+
+    if (url === requestedArtwork) return;
+
+    requestedArtwork = url;
+    img.onload = () => {
+      if (requestedArtwork !== url) return;
+      img.hidden = false;
+      fallback.hidden = true;
+    };
+    img.onerror = () => {
+      if (requestedArtwork !== url) return;
+      img.hidden = true;
+      fallback.hidden = false;
+    };
+
+    img.hidden = true;
+    fallback.hidden = false;
+    img.src = url;
+  }
+
+  function render(s) {
+    if (!s) return;
+
+    const m = s.metadata || {};
+    const artists = Array.isArray(m.artists)
+      ? m.artists.filter(x => typeof x === "string" && x.trim()).join(" · ")
+      : "";
+
+    const status = s.connected
+      ? (s.status || "unknown")
+      : "disconnected";
+
+    put(
+      "title",
+      typeof m.title === "string" && m.title.trim()
+        ? m.title
+        : "Nothing playing"
+    );
+
+    put(
+      "artist",
+      artists || (s.connected ? "Unknown artist" : "Waiting for player")
+    );
+
+    put(
+      "album",
+      typeof m.album === "string" && m.album.trim()
+        ? m.album
+        : "—"
+    );
+
+    put("status", status.toUpperCase());
+    put(
+      "player",
+      s.player && s.player.identity
+        ? s.player.identity
+        : "NO PLAYER"
+    );
+
+    const duration =
+      Number.isFinite(s.durationMs) && s.durationMs > 0
+        ? s.durationMs
+        : 0;
+
+    const position =
+      Number.isFinite(s.positionMs) && s.positionMs >= 0
+        ? s.positionMs
+        : 0;
+
+    const percentage = duration
+      ? Math.min(100, position / duration * 100)
+      : 0;
+
+    put("elapsed", time(position));
+    put("duration", duration ? time(duration) : "--:--");
+    put("percentage", String(Math.round(percentage)).padStart(2, "0") + "%");
+
+    const bar = $("progress");
+    if (bar) bar.style.width = percentage + "%";
+
+    updateArtwork(
+      typeof m.artworkUrl === "string" ? m.artworkUrl : ""
+    );
+
+    document.body.dataset.status = status;
+    document.body.dataset.connected = s.connected ? "true" : "false";
+  }
+
+  if (window.NowPlaying && typeof window.NowPlaying.subscribe === "function") {
+    window.NowPlaying.subscribe(render);
+  }
+})();
+'''
