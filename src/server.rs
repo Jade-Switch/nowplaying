@@ -150,9 +150,6 @@ async fn index(State(state): State<ServerState>) -> Response {
 }
 
 async fn preview_theme(Path(theme_id): Path<String>, State(state): State<ServerState>) -> Response {
-    if !state.themes.is_active(&theme_id).await {
-        return StatusCode::FORBIDDEN.into_response();
-    }
     let catalog = state.themes.catalog().await;
     let Some(theme) = catalog.themes.get(&theme_id) else {
         return StatusCode::NOT_FOUND.into_response();
@@ -181,19 +178,14 @@ async fn preview_family(
     Path(family_id): Path<String>,
     State(state): State<ServerState>,
 ) -> Response {
-    let active_ids = state.themes.active_ids().await;
     let catalog = state.themes.catalog().await;
-    let Some(mut group) = catalog
+    let Some(group) = catalog
         .selector_groups()
         .into_iter()
         .find(|group| group.family_id.as_deref() == Some(family_id.as_str()))
     else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    group.theme_ids.retain(|id| active_ids.contains(id));
-    if group.theme_ids.is_empty() {
-        return StatusCode::FORBIDDEN.into_response();
-    }
     let active = state
         .themes
         .active()
@@ -438,9 +430,6 @@ async fn preview_theme_asset(
     Path((theme_id, asset_id)): Path<(String, String)>,
     State(state): State<ServerState>,
 ) -> Response {
-    if !state.themes.is_active(&theme_id).await {
-        return StatusCode::FORBIDDEN.into_response();
-    }
     let catalog = state.themes.catalog().await;
     let Some(theme) = catalog.themes.get(&theme_id) else {
         return StatusCode::NOT_FOUND.into_response();

@@ -861,17 +861,81 @@ impl ThemeManager {
     }
 
     pub async fn set_active_limit(&self, limit: usize) -> Result<(), ThemeError> {
+        self.set_active_limit_with_confirmation(limit, None)
+            .await
+            .map(|_| ())
+    }
+
+    pub async fn active_limit_confirmation_disabled(&self) -> bool {
+        read_active_limit_confirmation_disabled(&self.settings_path).await
+    }
+
+    pub async fn set_active_limit_with_confirmation(
+        &self,
+        limit: usize,
+        disable_confirmation: Option<bool>,
+    ) -> Result<Vec<String>, ThemeError> {
+        let _mutation = self.mutation.lock().await;
         if limit != 0 && !(1..=5).contains(&limit) {
             return Err(ThemeError::InvalidSettings);
         }
+        let current_ids = self.active_ids.read().await.clone();
+        let remove_count = if limit == 0 {
+            0
+        } else {
+            current_ids.len().saturating_sub(limit)
+        };
+        let removed = current_ids
+            .iter()
+            .take(remove_count)
+            .cloned()
+            .collect::<Vec<_>>();
+        let next = current_ids
+            .iter()
+            .skip(remove_count)
+            .cloned()
+            .collect::<Vec<_>>();
+        let active = self.active.read().await.clone();
+        let selected_was_removed = active
+            .as_ref()
+            .is_some_and(|theme| removed.iter().any(|id| id == theme.id()));
+        let catalog = self.catalog.read().await;
+        let replacement = selected_was_removed
+            .then(|| next.last())
+            .flatten()
+            .and_then(|id| catalog.themes.get(id).cloned());
+        drop(catalog);
+
         update_settings(&self.settings_path, |table| {
             table.insert(
                 "max_active_themes".into(),
                 toml::Value::Integer(limit as i64),
             );
+            table.insert(
+                "active_theme_ids".into(),
+                toml::Value::Array(next.iter().cloned().map(toml::Value::String).collect()),
+            );
+            if let Some(disabled) = disable_confirmation {
+                table.insert(
+                    "skip_active_theme_limit_confirmation".into(),
+                    toml::Value::Boolean(disabled),
+                );
+            }
+            if let Some(theme) = &replacement {
+                update_selected_theme(table, theme)?;
+            }
             Ok(())
         })
-        .await
+        .await?;
+
+        if current_ids != next {
+            *self.active_ids.write().await = next;
+            if selected_was_removed {
+                *self.active.write().await = replacement;
+            }
+            self.notify_theme_change();
+        }
+        Ok(removed)
     }
 
     pub async fn toggle_active(&self, id: &str) -> Result<bool, ThemeError> {
@@ -899,12 +963,29 @@ impl ThemeManager {
             return Ok(false);
         }
         let limit = read_active_limit(&self.settings_path).await.unwrap_or(1);
-        if limit != 0 && ids.len() >= limit {
-            return Err(ThemeError::ActiveThemeLimit);
-        }
         let mut next = ids;
+        let evicted = if limit != 0 && next.len() >= limit {
+            Some(next.remove(0))
+        } else {
+            None
+        };
         next.push(id.to_owned());
-        save_active_ids(&self.settings_path, &next).await?;
+        let replace_selected = if let Some(evicted) = evicted.as_deref() {
+            self.active
+                .read()
+                .await
+                .as_ref()
+                .is_some_and(|theme| theme.id() == evicted)
+        } else {
+            false
+        };
+        if replace_selected {
+            let theme = catalog.themes.get(id).expect("theme was checked above");
+            save_active_ids_and_selection(&self.settings_path, &next, theme).await?;
+            *self.active.write().await = Some(theme.clone());
+        } else {
+            save_active_ids(&self.settings_path, &next).await?;
+        }
         *self.active_ids.write().await = next;
         self.notify_theme_change();
         Ok(true)
@@ -923,8 +1004,8 @@ impl ThemeManager {
         let persisted_ids = read_active_ids(&self.settings_path).await?;
         let mut ids = persisted_ids.clone().unwrap_or_default();
         ids.retain(|id| catalog.themes.contains_key(id));
-        ids.sort();
-        ids.dedup();
+        let mut seen = std::collections::BTreeSet::new();
+        ids.retain(|id| seen.insert(id.clone()));
         if persisted_ids.is_none()
             && let Some(selected) = read_selected_id(&self.settings_path).await?
             && catalog.themes.contains_key(&selected)
@@ -1174,6 +1255,21 @@ async fn read_active_limit(path: &Path) -> Result<usize, ThemeError> {
     }
 }
 
+async fn read_active_limit_confirmation_disabled(path: &Path) -> bool {
+    let Ok(bytes) = read_limited(path, MAX_SETTINGS_BYTES).await else {
+        return false;
+    };
+    toml::from_slice::<toml::Value>(&bytes)
+        .ok()
+        .and_then(|value| {
+            value
+                .as_table()?
+                .get("skip_active_theme_limit_confirmation")?
+                .as_bool()
+        })
+        .unwrap_or(false)
+}
+
 async fn read_active_ids(path: &Path) -> Result<Option<Vec<String>>, ThemeError> {
     let bytes = match read_limited(path, MAX_SETTINGS_BYTES).await {
         Ok(bytes) => bytes,
@@ -1189,7 +1285,7 @@ async fn read_active_ids(path: &Path) -> Result<Option<Vec<String>>, ThemeError>
     else {
         return Ok(None);
     };
-    let mut ids = raw_ids
+    let ids = raw_ids
         .as_array()
         .into_iter()
         .flatten()
@@ -1197,8 +1293,6 @@ async fn read_active_ids(path: &Path) -> Result<Option<Vec<String>>, ThemeError>
         .filter(|id| valid_theme_id(id))
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    ids.sort();
-    ids.dedup();
     Ok(Some(ids))
 }
 
@@ -1211,6 +1305,56 @@ async fn save_active_ids(path: &Path, ids: &[String]) -> Result<(), ThemeError> 
         Ok(())
     })
     .await
+}
+
+async fn save_active_ids_and_selection(
+    path: &Path,
+    ids: &[String],
+    theme: &LoadedTheme,
+) -> Result<(), ThemeError> {
+    let id = theme.id();
+    let family_id = theme.document.theme.family_id.as_deref();
+    if !valid_theme_id(id) || family_id.is_some_and(|family_id| !valid_theme_id(family_id)) {
+        return Err(ThemeError::InvalidSettings);
+    }
+    update_settings(path, |table| {
+        table.insert(
+            "active_theme_ids".into(),
+            toml::Value::Array(ids.iter().cloned().map(toml::Value::String).collect()),
+        );
+        update_selected_theme(table, theme)
+    })
+    .await
+}
+
+fn update_selected_theme(
+    table: &mut toml::map::Map<String, toml::Value>,
+    theme: &LoadedTheme,
+) -> Result<(), ThemeError> {
+    let id = theme.id();
+    let family_id = theme.document.theme.family_id.as_deref();
+    if !valid_theme_id(id) || family_id.is_some_and(|family_id| !valid_theme_id(family_id)) {
+        return Err(ThemeError::InvalidSettings);
+    }
+    table.insert(
+        "selected_theme_id".into(),
+        toml::Value::String(id.to_owned()),
+    );
+    if let Some(family_id) = family_id {
+        table.insert(
+            "selected_theme_family_id".into(),
+            toml::Value::String(family_id.to_owned()),
+        );
+        let variants = table
+            .entry("selected_theme_variants")
+            .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
+            .as_table_mut()
+            .ok_or(ThemeError::InvalidSettings)?;
+        variants.insert(family_id.to_owned(), toml::Value::String(id.to_owned()));
+    } else {
+        table.remove("selected_theme_family_id");
+    }
+    Ok(())
 }
 
 async fn update_settings<F>(path: &Path, update: F) -> Result<(), ThemeError>
@@ -2242,7 +2386,7 @@ template = "<main id='player'></main>"
     }
 
     #[tokio::test]
-    async fn active_theme_limit_persists_and_lowering_does_not_deactivate_themes() {
+    async fn active_theme_limit_persists_and_keeps_the_newest_themes_when_lowered() {
         let dir = TestDirectory::new("active-themes");
         let themes_dir = dir.0.join("themes");
         let settings = dir.0.join("settings.toml");
@@ -2260,28 +2404,24 @@ template = "<main id='player'></main>"
             .unwrap();
         assert_eq!(manager.active_limit().await, 1);
         assert!(manager.toggle_active("sample-player").await.unwrap());
-        assert!(matches!(
-            manager.toggle_active("second-player").await,
-            Err(ThemeError::ActiveThemeLimit)
-        ));
-        manager.set_active_limit(2).await.unwrap();
         assert!(manager.toggle_active("second-player").await.unwrap());
+        assert_eq!(manager.active_ids().await, ["second-player"]);
+        manager.set_active_limit(2).await.unwrap();
+        assert!(manager.toggle_active("third-player").await.unwrap());
+        assert_eq!(
+            manager.active_ids().await,
+            ["second-player", "third-player"]
+        );
         manager.set_active_limit(1).await.unwrap();
-        assert_eq!(manager.active_ids().await.len(), 2);
-        assert!(matches!(
-            manager.toggle_active("third-player").await,
-            Err(ThemeError::ActiveThemeLimit)
-        ));
-        assert!(matches!(
-            manager.toggle_active("sample-player").await,
-            Ok(false)
-        ));
+        assert_eq!(manager.active_ids().await, ["third-player"]);
+        assert!(manager.toggle_active("sample-player").await.unwrap());
+        assert_eq!(manager.active_ids().await, ["sample-player"]);
         let restarted = ThemeManager::new(&themes_dir, &settings, loader())
             .await
             .unwrap();
         restarted.refresh().await.unwrap();
         restarted.restore_active_ids().await.unwrap();
         assert_eq!(restarted.active_limit().await, 1);
-        assert_eq!(restarted.active_ids().await, ["second-player"]);
+        assert_eq!(restarted.active_ids().await, ["sample-player"]);
     }
 }

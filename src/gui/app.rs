@@ -114,9 +114,13 @@ enum Message {
     Navigate(Section),
     SelectTheme(String),
     ToggleTheme(String),
-    ThemeToggled(Result<(String, bool, Vec<String>), String>),
+    ThemeToggled(Result<(String, bool, Vec<String>, Option<String>), String>),
     ActiveLimitChanged(usize),
-    ActiveLimitSaved(Result<usize, String>),
+    ActiveLimitChecked(Result<(usize, bool), String>),
+    ProceedActiveLimitChange,
+    CancelActiveLimitChange,
+    ActiveLimitPromptDontAskAgain(bool),
+    ActiveLimitSaved(Result<(usize, Vec<String>, Option<String>), String>),
     ThemeSelected(Result<String, String>),
     RefreshThemes,
     ThemesRefreshed(Result<(ThemeDiscovery, Option<String>), String>),
@@ -185,6 +189,8 @@ struct App {
     show_requested: Arc<AtomicBool>,
     status_message: Option<String>,
     confirming_delete: Option<String>,
+    pending_active_limit: Option<usize>,
+    dont_ask_active_limit_again: bool,
     import_open: bool,
     import_session_id: u64,
     file_picker_active: bool,
@@ -271,6 +277,8 @@ impl App {
             show_requested,
             status_message: None,
             confirming_delete: None,
+            pending_active_limit: None,
+            dont_ask_active_limit_again: false,
             import_open: false,
             import_session_id: 0,
             file_picker_active: false,
@@ -309,15 +317,17 @@ impl App {
                     async move {
                         let activated =
                             themes.toggle_active(&id).await.map_err(|e| e.to_string())?;
-                        Ok((id, activated, themes.active_ids().await))
+                        let active_theme = themes.active().await.map(|theme| theme.id().to_owned());
+                        Ok((id, activated, themes.active_ids().await, active_theme))
                     },
                     Message::ThemeToggled,
                 )
             }
             Message::ThemeToggled(result) => {
                 match result {
-                    Ok((id, activated, active_ids)) => {
+                    Ok((id, activated, active_ids, active_theme)) => {
                         self.active_theme_ids = active_ids;
+                        self.active_theme = active_theme;
                         self.status_message = Some(if activated {
                             format!("Activated {id}.")
                         } else {
@@ -332,19 +342,47 @@ impl App {
                 let themes = self.themes.clone();
                 Task::perform(
                     async move {
-                        themes
-                            .set_active_limit(limit)
-                            .await
-                            .map_err(|e| e.to_string())?;
-                        Ok(limit)
+                        let needs_confirmation = limit != 0
+                            && themes.active_ids().await.len() > limit
+                            && !themes.active_limit_confirmation_disabled().await;
+                        Ok((limit, needs_confirmation))
                     },
-                    Message::ActiveLimitSaved,
+                    Message::ActiveLimitChecked,
                 )
+            }
+            Message::ActiveLimitChecked(result) => match result {
+                Ok((limit, true)) => {
+                    self.pending_active_limit = Some(limit);
+                    self.dont_ask_active_limit_again = false;
+                    Task::none()
+                }
+                Ok((limit, false)) => self.apply_active_limit(limit, None),
+                Err(error) => {
+                    self.status_message = Some(error);
+                    Task::none()
+                }
+            },
+            Message::ProceedActiveLimitChange => {
+                let Some(limit) = self.pending_active_limit.take() else {
+                    return Task::none();
+                };
+                self.apply_active_limit(limit, self.dont_ask_active_limit_again.then_some(true))
+            }
+            Message::CancelActiveLimitChange => {
+                self.pending_active_limit = None;
+                self.dont_ask_active_limit_again = false;
+                Task::none()
+            }
+            Message::ActiveLimitPromptDontAskAgain(checked) => {
+                self.dont_ask_active_limit_again = checked;
+                Task::none()
             }
             Message::ActiveLimitSaved(result) => {
                 match result {
-                    Ok(limit) => {
+                    Ok((limit, active_ids, active_theme)) => {
                         self.active_theme_limit = limit;
+                        self.active_theme_ids = active_ids;
+                        self.active_theme = active_theme;
                         self.status_message = Some("Active-theme limit saved.".to_owned());
                     }
                     Err(error) => self.status_message = Some(error),
@@ -741,9 +779,36 @@ impl App {
         }
     }
 
+    fn apply_active_limit(
+        &self,
+        limit: usize,
+        disable_confirmation: Option<bool>,
+    ) -> Task<Message> {
+        let themes = self.themes.clone();
+        Task::perform(
+            async move {
+                themes
+                    .set_active_limit_with_confirmation(limit, disable_confirmation)
+                    .await
+                    .map_err(|error| error.to_string())?;
+                let active_ids = themes.active_ids().await;
+                let active_theme = themes.active().await.map(|theme| theme.id().to_owned());
+                Ok((limit, active_ids, active_theme))
+            },
+            Message::ActiveLimitSaved,
+        )
+    }
+
     fn subscription(&self) -> Subscription<Message> {
         let mut subscriptions = vec![
-            time::every(Duration::from_millis(500)).map(|_| Message::Tick),
+            time::every(Duration::from_millis(
+                if self.section == Section::Playback {
+                    500
+                } else {
+                    1_000
+                },
+            ))
+            .map(|_| Message::Tick),
             window::close_requests().map(Message::CloseRequested),
         ];
         if self.import_open {
@@ -795,14 +860,73 @@ impl App {
         .height(Length::Fill)
         .style(|_| design::window_surface())
         .into();
-        if self.import_open {
-            Stack::with_children([base, self.import_dialog()])
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into()
-        } else {
-            base
+        if !self.import_open && self.pending_active_limit.is_none() {
+            return base;
         }
+        let mut layers = vec![base];
+        if self.import_open {
+            layers.push(self.import_dialog());
+        }
+        if self.pending_active_limit.is_some() {
+            layers.push(self.active_limit_dialog());
+        }
+        Stack::with_children(layers)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+
+    fn active_limit_dialog(&self) -> Element<'_, Message> {
+        let limit = self.pending_active_limit.unwrap_or_default();
+        let removed = self.active_theme_ids.len().saturating_sub(limit);
+        let theme_word = if removed == 1 { "theme" } else { "themes" };
+        let message = format!(
+            "Reducing the active-theme limit to {limit} will deactivate the {removed} oldest active {theme_word}."
+        );
+        let panel = container(
+            column![
+                text("Reduce active themes?")
+                    .size(design::typography::HEADING)
+                    .color(design::TEXT_PRIMARY),
+                text(message)
+                    .size(design::typography::BODY)
+                    .color(design::TEXT_SECONDARY),
+                checkbox(self.dont_ask_active_limit_again)
+                    .label("Don't ask me again")
+                    .on_toggle(Message::ActiveLimitPromptDontAskAgain),
+                row![
+                    space::horizontal().width(Length::Fill),
+                    button(text("Cancel"))
+                        .padding([design::spacing::SM, design::spacing::LG])
+                        .style(design::secondary_button)
+                        .on_press(Message::CancelActiveLimitChange),
+                    button(text("Proceed"))
+                        .padding([design::spacing::SM, design::spacing::LG])
+                        .style(design::primary_button)
+                        .on_press(Message::ProceedActiveLimitChange),
+                ]
+                .spacing(design::spacing::SM)
+                .align_y(Alignment::Center),
+            ]
+            .spacing(design::spacing::MD),
+        )
+        .padding(design::spacing::XL)
+        .width(Length::FillPortion(7))
+        .max_width(560)
+        .style(|_| design::surface());
+        container(panel)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .padding(design::spacing::LG)
+            .style(|_| container::Style {
+                background: Some(iced::Background::Color(iced::Color::from_rgba8(
+                    0, 0, 0, 0.62,
+                ))),
+                ..container::Style::default()
+            })
+            .into()
     }
 
     fn import_dialog(&self) -> Element<'_, Message> {
@@ -1037,9 +1161,14 @@ impl App {
         }
 
         let footer = self.status_message.as_ref().map(|message| {
-            text(message.as_str())
-                .size(design::typography::BODY)
-                .color(design::STATUS_ERROR)
+            container(
+                text(message.as_str())
+                    .size(design::typography::BODY)
+                    .color(design::TEXT_SECONDARY),
+            )
+            .padding([design::spacing::SM, design::spacing::MD])
+            .width(Length::Fill)
+            .style(|_| design::elevated_surface())
         });
         let content = column![
             header,
@@ -1118,7 +1247,7 @@ impl App {
             container(column![
                 text("MAXIMUM ACTIVE THEMES").size(design::typography::CAPTION).color(design::TEXT_SECONDARY),
                 limit_controls,
-                text("Lowering this limit keeps currently active themes and blocks new activations until there is room.")
+                text("When you activate a theme at the limit, the oldest active theme is deactivated automatically.")
                     .size(design::typography::CAPTION).color(design::TEXT_SECONDARY),
             ].spacing(design::spacing::SM))
             .padding(design::spacing::LG).width(Length::Fill).style(|_| design::surface()),
@@ -1211,14 +1340,10 @@ impl App {
         } else {
             row![
                 select,
-                button(text(if is_active {
-                    "Preview"
-                } else {
-                    "Activate to preview"
-                }))
-                .padding([design::spacing::SM, design::spacing::MD])
-                .style(design::secondary_button)
-                .on_press_maybe(is_active.then(|| Message::PreviewTheme(id.clone()))),
+                button(text("Preview"))
+                    .padding([design::spacing::SM, design::spacing::MD])
+                    .style(design::secondary_button)
+                    .on_press(Message::PreviewTheme(id.clone())),
                 button(text("Edit"))
                     .padding([design::spacing::SM, design::spacing::MD])
                     .style(design::secondary_button)
